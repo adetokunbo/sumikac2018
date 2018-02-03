@@ -1,0 +1,43 @@
+name:                sumikac2018
+version:             0.1.0.0
+
+synopsis:            SumikaCrafts site generator
+
+description:         Generates the sumikacrafts site from documents stored in Google                      Drive
+
+homepage:            https://github.com/adetokunbo/sumikac2018#readme
+license:             BSD3
+license-file:        LICENSE
+author:              Tim Emiola
+maintainer:          adetokunbo@users.noreply.github.com
+copyright:           BSD3
+category:            Experiments
+build-type:          Simple
+cabal-version:       >= 1.10
+extra-source-files:  README.md
+
+executable create-sumikac-site
+  hs-source-dirs:      exe
+  main-is:             Main.hs
+  default-language:    Haskell2010
+  build-depends:       base >= 4.7 && < 5
+                     , sumikac2018
+
+library
+  default-language:    Haskell2010
+  hs-source-dirs:      src
+  build-depends:       aeson         >= 1.2.3
+                     , base          >= 4.7 && < 5
+                     , bytestring    >= 0.10.8.2 && < 0.11
+                     , conduit       >= 1.2.13 && < 1.3
+                     , conduit-combinators >= 1.1.2
+                     , conduit-extra >= 1.2.3.2
+                     , directory     >= 1.3 && < 1.4
+                     , filepath      >= 1.4 && < 1.5
+                     , formatting    >= 6.2 && < 6.3
+                     , gogol         == 0.3.0.*
+                     , gogol-core    == 0.3.0.*
+                     , gogol-drive   == 0.3.0.*
+                     , lens          >= 4.15.4
+                     , resourcet     >= 1.1.11
+                     , text          >= 1.2.2
