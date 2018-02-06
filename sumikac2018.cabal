@@ -28,6 +28,7 @@ library
   hs-source-dirs:      src
 
   exposed-modules:     Client.Drive
+                     , Data.Sumikac.Types
                      , Path.Default
 
   build-depends:       aeson         >= 1.2.3
