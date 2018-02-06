@@ -28,6 +28,7 @@ library
   hs-source-dirs:      src
 
   exposed-modules:     Client.Drive
+                     , Data.Sumikac.Conduit
                      , Data.Sumikac.Types
                      , Path.Default
 
