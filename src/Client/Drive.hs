@@ -2,19 +2,15 @@
 
 module Client.Drive
   (
-    -- * Download files and/or folders
-    , downloadAFile
-    , downloadFolder
-    , downloadFolderToDir
+  -- * Download files and/or folders
+  downloadAFile
+  , downloadFolder
+  , downloadFolderToDir
 
-    -- * List the contents of folders
-    listFolder
-    ,listFolderNames
-    ,listFolderNamesWithIds
-
-    -- * Default path information
-    , createDefaultRootIfMissing
-    , rootRel
+  -- * List the contents of folders
+  , listFolder
+  , listFolderNames
+  , listFolderNamesWithIds
   )
 
 where
@@ -33,22 +29,14 @@ import qualified Data.Text                    as T
 import qualified Data.Text.Lazy               as L
 import           Formatting                   (Format, format, sformat, (%))
 import           Formatting.Formatters        (text)
+
+import           Path.Default                 (createDefaultDirIfMissing)
+
 import           System.Directory             (createDirectoryIfMissing,
                                                getHomeDirectory)
 import           System.FilePath              ((</>))
 import           System.IO                    (stdout)
 
-
--- | The relative path of the root to the home directory
-rootRel :: FilePath
-rootRel = ".gogol" </> "drive"
-
--- | Determine the root directory
-createDefaultRootIfMissing :: IO FilePath
-createDefaultRootIfMissing = do
-  root <- (</> rootRel) <$> getHomeDirectory
-  createDirectoryIfMissing True root
-  return root
 
 -- | Format for a query that searches for folders
 folderQueryFmt :: Format r (L.Text -> r)
@@ -98,7 +86,7 @@ gdoc2base = T.unpack . T.replace " " "_"
 -- of. In order to do this you must share the folder with the email address of your
 -- service which is in the downloaded service config file.
 
--- | Lists files in a given drive folder.
+-- | Lists files in a Drive folder.
 --
 -- This dumps the 'FileList' object containing all the 'File' objects in the
 -- folder, resulting in very dense output. To get a simplier view, use
@@ -113,20 +101,19 @@ listFolder name = do
       Nothing -> return $ fileList
       q       -> send $ flQ .~ q $ filesList
 
--- | Lists all the names of all non-folder files in a given drive folder.
+-- | Lists the names of all non-folder files in a Drive folder.
 listFolderNames :: T.Text -> IO [T.Text]
 listFolderNames name = do
   files <- (^. flFiles) <$> listFolder name
   return $ catMaybes $ (^. fName) <$> files
 
--- | Lists all names and ids of all non-folder files in a given drive folder.
+-- | Lists the names and ids of all non-folder files in a Drive folder.
 listFolderNamesWithIds :: T.Text -> IO [(T.Text, T.Text)]
 listFolderNamesWithIds name = do
   files <- (^. flFiles) <$> listFolder name
-  idsAndNames <- return $ nameAndId <$> files
-  return $ catMaybes idsAndNames
+  return $ catMaybes $ nameAndId <$> files
 
--- | Download a file given its id and store it to a local path
+-- | Download a file and save it in a local path.
 downloadAFile :: T.Text -> FilePath -> IO ()
 downloadAFile srcId dst = do
   lgr <- newLogger Debug stdout
@@ -135,16 +122,16 @@ downloadAFile srcId dst = do
     stream <- download (filesExport "text/plain" srcId)
     liftResourceT (stream $$+- sinkFile dst)
 
--- | Download the files in a folder to a local directory
+-- | Download the files in a folder to a local directory.
 downloadFolderToDir :: FilePath -> T.Text -> IO ()
 downloadFolderToDir root folder = do
   namesAndIds <- listFolderNamesWithIds folder
   forM_ namesAndIds $ \(name, itsId) -> do
     downloadAFile itsId $ root </> gdoc2base name ++ ".yaml"
 
--- | Download the files in a folder to a standard location
+-- | Download the files in a folder in a standard location.
 downloadFolder :: T.Text -> IO ()
 downloadFolder folder = do
-  dst <- (</> gdoc2base folder) <$> createDefaultRootIfMissing
+  dst <- (</> gdoc2base folder) <$> createDefaultDirIfMissing
   createDirectoryIfMissing True dst
   downloadFolderToDir dst folder
