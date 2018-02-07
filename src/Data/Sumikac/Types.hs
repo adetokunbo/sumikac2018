@@ -3,22 +3,36 @@
 module Data.Sumikac.Types
   (
     Product(..)
+  , fileNameWithContent
   )
 where
 
 import           Data.Aeson
 import           Data.Aeson.Types
+import           Data.ByteString  (ByteString)
+import           Data.ByteString.Lazy (toStrict)
 import           Data.Char        (toUpper)
 import           Data.Monoid      ((<>))
-import           Data.Text        (Text)
+import           Data.Text        (Text, unpack, replace)
 import qualified Data.Text        as T
 import qualified Data.Yaml        as Y
 
 import           GHC.Generics
+import           System.FilePath
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
 -- Chopsticks_and_Soap_Rest, there is ManyDimensions, that is just not handled
+
+-- | Gets the file name and content for saving a product to a file
+fileNameWithContent
+  :: FilePath -- ^ the path of the directory in which to save the product
+  -> Product  -- ^ the product to save
+  -> (FilePath, ByteString)
+fileNameWithContent dir prod = (fullName, content) where
+  fullName = dir </> (unpack $  (normalize . _internalName) prod)
+  content = (toStrict . encode) prod
+  normalize = (<> ".yaml") . replace "/" "-"
 
 data Product = Product
   { _internalName        :: Text
