@@ -3,12 +3,13 @@
 module Data.Sumikac.Conduit
   (
   -- * Yaml parsing conduits
-    decodeYamlProducts
+    convert1File
+  , convertFilesInDir
+  , decodeYamlProducts
   , decodeYamlStream
   , decodeYamlStreamEither
 
   -- * Useful functions
-  , groupByDashes
   , groupBySep
   )
 where
@@ -33,23 +34,30 @@ import           System.FilePath
 
 import           Data.Sumikac.Types
 
-processProductFiles
+-- | Convert the product YAML files in a source directory into output files in
+-- another
+convertFilesInDir
   :: (MonadIO m, MonadResource m)
-  => FilePath
-  -> FilePath
+  => FilePath -- ^ the source directory
+  -> FilePath -- ^ the output directory
   -> ConduitM i o m ()
-processProductFiles srcDir dstDir =
-  CF.sourceDirectory srcDir
-  .| awaitForever (\f -> handleProductFile dstDir $ CC.sourceFile f)
-
-handleProductFile
-  :: (MonadIO m, MonadThrow m)
-  => FilePath
-  -> ConduitM i ByteString m ()
-  -> ConduitM i o m ()
-handleProductFile dstDir source = source .| handler
+convertFilesInDir srcDir dstDir = CF.sourceDirectory srcDir .| awaitForever go
   where
-    handler = combine decodeYamlProducts handleProducts dumpParseException
+    go f = do
+      liftIO $ do
+        putStrLn ""
+        putStrLn $ "Processing " ++ f
+      convert1File dstDir $ CC.sourceFile f
+
+-- | Converts a product YAML file to an output in a target directory
+convert1File
+  :: (MonadIO m, MonadThrow m)
+  => FilePath                   -- ^ the target directory
+  -> ConduitM i ByteString m () -- ^ the conversion pipeline
+  -> ConduitM i o m ()
+convert1File dstDir source = source .| go
+  where
+    go = combine decodeYamlProducts handleProducts dumpParseException
     handleProducts = yieldNameAndContent dstDir .| tmpDumpName
     combine parsed goP goE =  getZipConduit $ ZipConduit goP' <* ZipConduit goE'
       where
@@ -77,20 +85,20 @@ dumpParseException
   => ConduitM ParseException o m ()
 dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
 
--- | Specializes 'decodeYamlStream' to a stream of Products from Yaml
+-- | Specializes 'decodeYamlStream' to yield 'Product'
 decodeYamlProducts
   :: (Monad m, MonadThrow m)
   => ConduitM ByteString (Either ParseException Product) m ()
 decodeYamlProducts = decodeYamlStreamEither
 
--- | Splits the upstream 'ByteString' into Yaml documents
--- | that yield `Left ParseException` on failures
+-- | Splits the upstream 'ByteString' into objects decoded from Yaml documents
+-- | using 'Either' 'ParseException' to allow exception handling
 decodeYamlStreamEither
   :: (Monad m, MonadThrow m, FromJSON a)
   => ConduitM ByteString (Either ParseException a) m ()
 decodeYamlStreamEither = yamlDocStream .| CC.map decodeEither'
 
--- | Splits the upstream 'ByteString' into Yaml documents
+-- | Splits the upstream 'ByteString' into objects decoded from Yaml documnets
 decodeYamlStream
   :: (Monad m, MonadThrow m, FromJSON a)
   => ConduitM ByteString (Maybe a) m ()
@@ -100,12 +108,12 @@ decodeYamlStream = yamlDocStream .| CC.map decode
 yamlDocStream
   :: (Monad m, MonadThrow m)
   => ConduitM ByteString ByteString m ()
-yamlDocStream = CT.decode CT.utf8 .| groupByDashes .| CT.encode CT.utf8 .| (CC.filter $ not . BS.null)
-
--- | Splits the upstream 'Text' into chunks bounded by
--- | separator lines containing "---"
-groupByDashes :: Monad m => ConduitM Text Text m ()
-groupByDashes = groupBySep $ \x -> x == "---"
+yamlDocStream =
+  CT.decode CT.utf8
+  .| byDashes
+  .| CT.encode CT.utf8
+  .| (CC.filter $ not . BS.null)
+  where byDashes = groupBySep $ \x -> x == "---"
 
 -- | Splits the upstream 'Text' into chunks bounded by
 -- | separator lines that match the predicate
@@ -133,16 +141,3 @@ yieldFromJust inner = do
   lastChunk <- inner
   CL.sinkNull
   maybe (return ()) (\chunk -> yield chunk >> return ()) lastChunk
-
-yieldFromReturn
-  :: Monad m
-  => (r -> o)
-  -> ConduitM i o m r
-  -> ConduitM i o m ()
-yieldFromReturn f inner = do
-  result <- inner
-  CL.sinkNull
-  yield $ f result
-
-unlinesText :: Monad m => Conduit Text m Text
-unlinesText = awaitForever $ \x -> yield x >> yield "\n"
