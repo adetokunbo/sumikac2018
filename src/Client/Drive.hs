@@ -123,15 +123,15 @@ downloadAFile srcId dst = do
     liftResourceT (stream $$+- sinkFile dst)
 
 -- | Download the files in a folder to a local directory.
-downloadFolderToDir :: FilePath -> T.Text -> IO ()
-downloadFolderToDir d folder = do
-  createDirectoryIfMissing True d
+downloadFolderToDir :: T.Text -> FilePath -> IO FilePath
+downloadFolderToDir folder d = do
+  let subd = d </> gdoc2base folder
+  createDirectoryIfMissing True subd
   namesAndIds <- listFolderNamesWithIds folder
   forM_ namesAndIds $ \(name, itsId) -> do
-    downloadAFile itsId $ d </> gdoc2base name ++ ".yaml"
+    downloadAFile itsId $ subd </> gdoc2base name ++ ".yaml"
+  return subd
 
 -- | Download the files in a folder in a standard location.
-downloadFolder :: T.Text -> IO ()
-downloadFolder folder = do
-  d <- (</> gdoc2base folder) <$> createDefaultDirIfMissing
-  downloadFolderToDir d folder
+downloadFolder :: T.Text -> IO FilePath
+downloadFolder f = createDefaultDirIfMissing >>= downloadFolderToDir f
