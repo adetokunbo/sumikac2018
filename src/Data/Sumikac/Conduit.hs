@@ -2,18 +2,20 @@
 {-# LANGUAGE OverloadedStrings    #-}
 module Data.Sumikac.Conduit
   (
-  -- * Yaml parsing conduits
+  -- * Yaml Parsing functions
     convert1File
   , convertFilesInDir
   , decodeYamlProducts
   , decodeYamlStream
   , decodeYamlStreamEither
+  , mkProductPipe
 
   -- * Useful functions
   , groupBySep
   )
 where
 
+import Control.Monad (void)
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Resource
 import           Data.Aeson                   (FromJSON (..))
@@ -30,41 +32,70 @@ import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
 import           Data.Yaml                    (ParseException (..), decode,
                                                decodeEither')
+import           System.Directory             (doesFileExist)
 import           System.FilePath
 
 import           Data.Sumikac.Types
 
--- | Convert the product YAML files in a source directory into output files in
--- another
+-- | Creates a 'ConvertPipeline' for product conversion
+mkProductPipe
+  :: (MonadThrow m, MonadIO m)
+  => FilePath
+  -> ConvertPipeline Product o m
+mkProductPipe dstDir = ConvertPipeline
+  { cpParse = decodeYamlProducts
+  , cpGo = yieldNameAndContent dstDir .| tmpDumpName
+  , cpError = dumpParseException
+  }
+
+-- | Process the target YAML files in a srcDir into outputs in dstDir
+--
+-- E.g, to process all the product info files in srcDir
+-- @
+--   runConduitRes $ convertFilesInDir srcDir dstDir $ mkProductPipe dstDir
+-- @
 convertFilesInDir
   :: (MonadIO m, MonadResource m)
   => FilePath -- ^ the source directory
   -> FilePath -- ^ the output directory
+  -> ConvertPipeline j o m
   -> ConduitM i o m ()
-convertFilesInDir srcDir dstDir = CF.sourceDirectory srcDir .| awaitForever go
+convertFilesInDir srcDir dstDir pipe =
+  CF.sourceDirectory srcDir
+  .| CC.filterM (liftIO . doesFileExist)
+  .| awaitForever go
   where
     go f = do
-      liftIO $ do
-        putStrLn ""
-        putStrLn $ "Processing " ++ f
-      convert1File dstDir $ CC.sourceFile f
+      liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
+      convert1File dstDir (CC.sourceFile f) pipe
 
--- | Converts a product YAML file to an output in a target directory
+-- | Processes a target yaml file using a pipeline that places output in dstDir
+--
+-- E.g, to process a single file product file
+-- @
+--   runConduitRes $ convert1File dstDir source $ mkProductPipe dstDir
+-- @
 convert1File
   :: (MonadIO m, MonadThrow m)
   => FilePath                   -- ^ the target directory
-  -> ConduitM i ByteString m () -- ^ the conversion pipeline
+  -> ConduitM i ByteString m () -- ^ a producer of the contents of yaml files
+  -> ConvertPipeline j o m      -- ^ a conversion pipeline
   -> ConduitM i o m ()
-convert1File dstDir source = source .| go
+convert1File dstDir source pipe = source .| go
   where
-    go = combine decodeYamlProducts handleProducts dumpParseException
-    handleProducts = yieldNameAndContent dstDir .| tmpDumpName
-    combine parsed goP goE =  getZipConduit $ ZipConduit goP' <* ZipConduit goE'
-      where
-        goE' = parsed .| CC.concatMap left .| goE
-        goP' = parsed .| CC.concatMap right .| goP
-        left = either Just (const Nothing)
-        right = either (const Nothing) Just
+    go = getZipConduit $ ZipConduit goP' <* ZipConduit goE'
+    goE' = cpParse pipe .| CC.concatMap left .| cpError pipe
+    goP' = cpParse pipe .| CC.concatMap right .| cpGo pipe
+    left = either Just (const Nothing)
+    right = either (const Nothing) Just
+
+-- | ConvertPipeline describes the conduits used by convert1File' to process a
+-- specific type of YAML file
+data ConvertPipeline a o m  = ConvertPipeline
+  { cpParse :: ConduitM ByteString (Either ParseException a) m ()
+  , cpGo    :: ConduitM a o m ()
+  , cpError :: ConduitM ParseException o m ()
+  }
 
 -- | Prints the name to stdout
 tmpDumpName
