@@ -124,14 +124,14 @@ downloadAFile srcId dst = do
 
 -- | Download the files in a folder to a local directory.
 downloadFolderToDir :: FilePath -> T.Text -> IO ()
-downloadFolderToDir root folder = do
+downloadFolderToDir d folder = do
+  createDirectoryIfMissing True d
   namesAndIds <- listFolderNamesWithIds folder
   forM_ namesAndIds $ \(name, itsId) -> do
-    downloadAFile itsId $ root </> gdoc2base name ++ ".yaml"
+    downloadAFile itsId $ d </> gdoc2base name ++ ".yaml"
 
 -- | Download the files in a folder in a standard location.
 downloadFolder :: T.Text -> IO ()
 downloadFolder folder = do
-  dst <- (</> gdoc2base folder) <$> createDefaultDirIfMissing
-  createDirectoryIfMissing True dst
-  downloadFolderToDir dst folder
+  d <- (</> gdoc2base folder) <$> createDefaultDirIfMissing
+  downloadFolderToDir d folder
