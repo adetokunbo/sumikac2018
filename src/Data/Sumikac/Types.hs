@@ -3,7 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Data.Sumikac.Types
   (
-    Product(..)
+    LiteralDescription(..)
+  ,  Product(..)
   , fileNameWithContent
   )
 where
@@ -100,6 +101,36 @@ namedDimensionsToJSON = toJSON . HM.fromList . asList
   where
     asList = map toKeyValue . unNamedDimensions
     toKeyValue (NamedDimension n v) = (n,  toJSON v)
+
+-- | A 'LiteralDescription' is the literal form of the product descriptions
+-- in the description Yaml files.
+--
+-- The form is compact; descriptions for multiple products from a given
+-- manufacturer often use the same text, so the files are organized so that
+-- entries for products can share descriptions - any text that is shared is only
+-- written once.
+--
+-- This means that often the literal entries in a given file may be related to
+-- each other.
+data LiteralDescription = LiteralDescription
+  { _ldInternalName :: Maybe Text
+  , _ldLabel        :: Maybe Text
+  , _ldLanguage     :: Maybe Text
+  , _ldProductName  :: Maybe Text
+  , _ldText         :: Maybe Text
+  , _ldLinks        :: Maybe Text
+  } deriving (Show, Generic)
+
+ldOptions :: Options
+ldOptions = defaultOptions { fieldLabelModifier = modifyFields }
+  where modifyFields = transformFst toUpper . drop 3
+
+instance FromJSON LiteralDescription where
+  parseJSON = genericParseJSON ldOptions
+
+instance ToJSON LiteralDescription where
+  toJSON = genericToJSON ldOptions
+  toEncoding = genericToEncoding ldOptions
 
 -- | Transform first letter of 'String' using the function given.
 transformFst :: (Char -> Char) -> String -> String
