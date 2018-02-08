@@ -1,3 +1,5 @@
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
 
@@ -21,11 +23,11 @@ import           Network.Google.Drive
 
 import           Conduit
 import           Control.Lens                 ((.~), (<&>), (^.))
-import           Control.Monad                (forM_)
+import           Control.Monad                (forM_, foldM)
 import           Control.Monad.Trans.Resource (liftResourceT, runResourceT)
 import           Data.Conduit                 (($$+-))
 import           Data.Maybe                   (catMaybes, listToMaybe)
-import           Data.Text                    (Text, replace, unpack)
+import           Data.Text                    (Text, replace, unpack, split)
 import           Formatting                   (Format, sformat, (%))
 import           Formatting.Formatters        (stext)
 
@@ -45,37 +47,32 @@ folderQueryFmt =
   % "' and mimeType = 'application/vnd.google-apps.folder'"
 
 -- | Make a query for searching for a folder with a given name
-mkFolderQuery :: Text -> Maybe Text
-mkFolderQuery name = Just $ sformat folderQueryFmt name
+mkFolderQuery :: Text -> Text
+mkFolderQuery name = sformat folderQueryFmt name
 
--- | Format for a query that searchs for a folder beneath a given parent folder
+-- | Format for a query that searchs for a folder beneath a parent folder
 subQueryFmt :: Format r (Text -> Text -> r)
 subQueryFmt =
   "name = '"
   % stext
-  % " and '"
+  % "' and '"
   % stext
   % "' in parents and mimeType = 'application/vnd.google-apps.folder'"
 
 -- | Make a query for searching for a sub folder with a given name
-mkSubQuery :: Text -> Text -> Maybe Text
-mkSubQuery parentId name = Just $ sformat subQueryFmt parentId name
+mkSubQuery :: Text -> Text -> Text
+mkSubQuery name theId = sformat subQueryFmt name theId
 
 -- | Format for a query that searchs for files belonging to a given parent
 filesQueryFmt :: Format r (Text -> r)
 filesQueryFmt =
   "'"
   % stext
-  % "' in parents and mimeType != 'application/vnd.google-apps.folder'"
+  % "' in parents and mimeType = 'application/vnd.google-apps.document'"
 
--- | Make a query for finding a Folder's chidren from the FileList returned
--- Obtain the id and name from a file from searching for a Folder
-mkFilesQuery :: FileList -> Maybe Text
-mkFilesQuery fl = do
-  f <- listToMaybe $ fl ^. flFiles
-    -- ignore all Files except the first, this ok as there should be just one
-  theId <- f ^. fId
-  return $ sformat filesQueryFmt theId
+-- | Make a query for finding a Folder's chidren given its Id
+mkFilesQuery :: Text -> Text
+mkFilesQuery parentId = sformat filesQueryFmt parentId
 
 -- | Obtain the namd and id from a file.
 --
@@ -111,13 +108,28 @@ gdoc2base = unpack . replace " " "_"
 -- 'exampleListFolderNames' or 'exampleListFolderNamesWithIds'
 listFolder :: Text -> IO FileList
 listFolder name = do
+  let withId fl = do
+        f <- listToMaybe $ fl ^. flFiles
+        return $ f ^. fId
+
+  -- | foldM helper function that traverses folders on Drive to get the driveId
+  -- of the leaf folder
+  let getSub Nothing name = do
+        md <- send $ flQ .~ (Just $ mkFolderQuery name) $ filesList
+        return $ withId md
+      getSub (Just Nothing) _ = return $ Just Nothing
+      getSub (Just (Just theId)) name = do
+        md <- send $ flQ .~ (Just $ mkSubQuery name theId) $ filesList
+        return $ withId md
+
   lgr <- newLogger Debug stdout
   env <- newEnv <&> (envLogger .~ lgr) . (envScopes .~ driveScope)
   runResourceT . runGoogle env $ do
-    md <- send $ flQ .~ (mkFolderQuery name) $ filesList
-    case mkFilesQuery md of
-      Nothing -> return $ fileList
-      q       -> send $ flQ .~ q $ filesList
+    let parts = split (== '/') name
+    parentId <- foldM getSub Nothing parts
+    case parentId of
+      (Just (Just theId)) -> send $ flQ .~ (Just $ mkFilesQuery theId) $ filesList
+      _ -> return $ fileList
 
 -- | Lists the names of all non-folder files in a Drive folder.
 listFolderNames :: Text -> IO [Text]
