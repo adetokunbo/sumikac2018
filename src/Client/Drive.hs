@@ -48,6 +48,19 @@ folderQueryFmt =
 mkFolderQuery :: Text -> Maybe Text
 mkFolderQuery name = Just $ sformat folderQueryFmt name
 
+-- | Format for a query that searchs for a folder beneath a given parent folder
+subQueryFmt :: Format r (Text -> Text -> r)
+subQueryFmt =
+  "name = '"
+  % stext
+  % " and '"
+  % stext
+  % "' in parents and mimeType = 'application/vnd.google-apps.folder'"
+
+-- | Make a query for searching for a sub folder with a given name
+mkSubQuery :: Text -> Text -> Maybe Text
+mkSubQuery parentId name = Just $ sformat subQueryFmt parentId name
+
 -- | Format for a query that searchs for files belonging to a given parent
 filesQueryFmt :: Format r (Text -> r)
 filesQueryFmt =
