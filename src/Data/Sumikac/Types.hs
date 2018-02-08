@@ -119,7 +119,8 @@ data LiteralDescription = LiteralDescription
   , _ldLanguage     :: Maybe Text
   , _ldProductName  :: Maybe Text
   , _ldText         :: Maybe Text
-  , _ldLinks        :: Maybe Text
+  , _ldLinks        :: Maybe [Text]
+  , _idShownBy      :: Maybe [Text]
   } deriving (Show, Generic)
 
 -- | Gets the file name and content for saving a product to a file
