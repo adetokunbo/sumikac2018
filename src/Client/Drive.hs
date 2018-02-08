@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE OverloadedStrings    #-}
 
 module Client.Drive
   (
@@ -24,11 +25,9 @@ import           Control.Monad                (forM_)
 import           Control.Monad.Trans.Resource (liftResourceT, runResourceT)
 import           Data.Conduit                 (($$+-))
 import           Data.Maybe                   (catMaybes, listToMaybe)
-
-import qualified Data.Text                    as T
-import qualified Data.Text.Lazy               as L
-import           Formatting                   (Format, format, sformat, (%))
-import           Formatting.Formatters        (text)
+import           Data.Text                    (Text, replace, unpack)
+import           Formatting                   (Format, sformat, (%))
+import           Formatting.Formatters        (stext)
 
 import           Path.Default                 (createDefaultDirIfMissing)
 
@@ -39,25 +38,31 @@ import           System.IO                    (stdout)
 
 
 -- | Format for a query that searches for folders
-folderQueryFmt :: Format r (L.Text -> r)
-folderQueryFmt = "name = '" % text % "' and mimeType = 'application/vnd.google-apps.folder'"
+folderQueryFmt :: Format r (Text -> r)
+folderQueryFmt =
+  "name = '"
+  % stext
+  % "' and mimeType = 'application/vnd.google-apps.folder'"
 
--- | Obtain the query for searching for a folder with a given name
-mkFolderQuery :: T.Text -> Maybe T.Text
-mkFolderQuery name = Just $ sformat folderQueryFmt $ L.fromStrict name
+-- | Make a query for searching for a folder with a given name
+mkFolderQuery :: Text -> Maybe Text
+mkFolderQuery name = Just $ sformat folderQueryFmt name
 
 -- | Format for a query that searchs for files belonging to a given parent
-childQueryFmt :: Format r (L.Text -> r)
-childQueryFmt = "'" % text % "' in parents and mimeType != 'application/vnd.google-apps.folder'"
+filesQueryFmt :: Format r (Text -> r)
+filesQueryFmt =
+  "'"
+  % stext
+  % "' in parents and mimeType != 'application/vnd.google-apps.folder'"
 
--- | Obtain a query for finding a Folder's chidren from the FileList returned
--- Obtain the id and name from a filefrom searching for a Folder
-mkChildQuery :: FileList -> Maybe T.Text
-mkChildQuery fl = do
+-- | Make a query for finding a Folder's chidren from the FileList returned
+-- Obtain the id and name from a file from searching for a Folder
+mkFilesQuery :: FileList -> Maybe Text
+mkFilesQuery fl = do
   f <- listToMaybe $ fl ^. flFiles
     -- ignore all Files except the first, this ok as there should be just one
   theId <- f ^. fId
-  return $ L.toStrict $ format childQueryFmt $ L.fromStrict theId
+  return $ sformat filesQueryFmt theId
 
 -- | Obtain the namd and id from a file.
 --
@@ -69,12 +74,12 @@ mkChildQuery fl = do
 --   itsId <- f ^. fId
 --   return (name, itsId)
 -- @
-nameAndId :: File -> Maybe (T.Text, T.Text)
+nameAndId :: File -> Maybe (Text, Text)
 nameAndId f = (,) <$> (f ^. fName) <*> (f ^. fId)
 
 -- | Convert the name attribute of a Drive 'File' to a local basename.
-gdoc2base :: T.Text -> FilePath
-gdoc2base = T.unpack . T.replace " " "_"
+gdoc2base :: Text -> FilePath
+gdoc2base = unpack . replace " " "_"
 
 -- * Example functions
 --
@@ -91,30 +96,30 @@ gdoc2base = T.unpack . T.replace " " "_"
 -- This dumps the 'FileList' object containing all the 'File' objects in the
 -- folder, resulting in very dense output. To get a simplier view, use
 -- 'exampleListFolderNames' or 'exampleListFolderNamesWithIds'
-listFolder :: T.Text -> IO FileList
+listFolder :: Text -> IO FileList
 listFolder name = do
   lgr <- newLogger Debug stdout
   env <- newEnv <&> (envLogger .~ lgr) . (envScopes .~ driveScope)
   runResourceT . runGoogle env $ do
     md <- send $ flQ .~ (mkFolderQuery name) $ filesList
-    case mkChildQuery md of
+    case mkFilesQuery md of
       Nothing -> return $ fileList
       q       -> send $ flQ .~ q $ filesList
 
 -- | Lists the names of all non-folder files in a Drive folder.
-listFolderNames :: T.Text -> IO [T.Text]
+listFolderNames :: Text -> IO [Text]
 listFolderNames name = do
   files <- (^. flFiles) <$> listFolder name
   return $ catMaybes $ (^. fName) <$> files
 
 -- | Lists the names and ids of all non-folder files in a Drive folder.
-listFolderNamesWithIds :: T.Text -> IO [(T.Text, T.Text)]
+listFolderNamesWithIds :: Text -> IO [(Text, Text)]
 listFolderNamesWithIds name = do
   files <- (^. flFiles) <$> listFolder name
   return $ catMaybes $ nameAndId <$> files
 
 -- | Download a file and save it in a local path.
-downloadAFile :: T.Text -> FilePath -> IO ()
+downloadAFile :: Text -> FilePath -> IO ()
 downloadAFile srcId dst = do
   lgr <- newLogger Debug stdout
   env <- newEnv <&> (envLogger .~ lgr) . (envScopes .~ driveScope)
@@ -123,7 +128,7 @@ downloadAFile srcId dst = do
     liftResourceT (stream $$+- sinkFile dst)
 
 -- | Download the files in a folder to a local directory.
-downloadFolderToDir :: T.Text -> FilePath -> IO FilePath
+downloadFolderToDir :: Text -> FilePath -> IO FilePath
 downloadFolderToDir folder d = do
   let subd = d </> gdoc2base folder
   createDirectoryIfMissing True subd
@@ -133,5 +138,5 @@ downloadFolderToDir folder d = do
   return subd
 
 -- | Download the files in a folder in a standard location.
-downloadFolder :: T.Text -> IO FilePath
+downloadFolder :: Text -> IO FilePath
 downloadFolder f = createDefaultDirIfMissing >>= downloadFolderToDir f
