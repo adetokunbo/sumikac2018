@@ -37,14 +37,25 @@ import           System.FilePath
 
 import           Data.Sumikac.Types
 
--- | Creates a 'ConvertPipeline' for product conversion
+-- | Creates a 'ConvertPipeline' for 'LiteralDescription'
+mkLiteralDescriptionPipe
+  :: (MonadThrow m, MonadIO m)
+  => FilePath
+  -> ConvertPipeline LiteralDescription o m
+mkLiteralDescriptionPipe dstDir = ConvertPipeline
+  { cpParse = decodeYamlLiteralDescription
+  , cpGo = yieldFileAndProductName dstDir .| CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
+  , cpError = dumpParseException
+  }
+
+-- | Creates a 'ConvertPipeline' for 'Product'
 mkProductPipe
   :: (MonadThrow m, MonadIO m)
   => FilePath
   -> ConvertPipeline Product o m
 mkProductPipe dstDir = ConvertPipeline
   { cpParse = decodeYamlProducts
-  , cpGo = yieldNameAndContent dstDir .| tmpDumpName
+  , cpGo = yieldNameAndContent dstDir .| CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
   , cpError = dumpParseException
   }
 
@@ -97,11 +108,30 @@ data ConvertPipeline a o m  = ConvertPipeline
   , cpError :: ConduitM ParseException o m ()
   }
 
--- | Prints the name to stdout
-tmpDumpName
+-- | Dumps a ParseError to stderr
+dumpParseException
   :: (MonadIO m)
-  => ConduitM (FilePath, ByteString) o m ()
-tmpDumpName = CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
+  => ConduitM ParseException o m ()
+dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
+
+-- | Specializes 'decodeYamlStream' to yield 'LiteralDescription'
+decodeYamlLiteralDescription
+  :: (Monad m, MonadThrow m)
+  => ConduitM ByteString (Either ParseException LiteralDescription) m ()
+decodeYamlLiteralDescription = decodeYamlStreamEither
+
+-- | Yields the filename and Yaml-encoded output of a 'Product'
+yieldFileAndProductName
+  :: (Monad m)
+  => FilePath
+  -> ConduitM LiteralDescription (FilePath, Text) m ()
+yieldFileAndProductName dstDir = CC.map $ fileAndProductName dstDir
+
+-- | Specializes 'decodeYamlStream' to yield 'Product'
+decodeYamlProducts
+  :: (Monad m, MonadThrow m)
+  => ConduitM ByteString (Either ParseException Product) m ()
+decodeYamlProducts = decodeYamlStreamEither
 
 -- | Yields the filename and Yaml-encoded output of a 'Product'
 yieldNameAndContent
@@ -109,18 +139,6 @@ yieldNameAndContent
   => FilePath
   -> ConduitM Product (FilePath, ByteString) m ()
 yieldNameAndContent dstDir = CC.map $ fileNameWithContent dstDir
-
--- | Dumps a ParseError to stderr
-dumpParseException
-  :: (MonadIO m)
-  => ConduitM ParseException o m ()
-dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
-
--- | Specializes 'decodeYamlStream' to yield 'Product'
-decodeYamlProducts
-  :: (Monad m, MonadThrow m)
-  => ConduitM ByteString (Either ParseException Product) m ()
-decodeYamlProducts = decodeYamlStreamEither
 
 -- | Splits the upstream 'ByteString' into objects decoded from Yaml documents
 -- | using 'Either' 'ParseException' to allow exception handling

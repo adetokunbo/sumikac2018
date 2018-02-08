@@ -6,6 +6,7 @@ module Data.Sumikac.Types
     LiteralDescription(..)
   ,  Product(..)
   , fileNameWithContent
+  , fileAndProductName
   )
 where
 
@@ -120,6 +121,18 @@ data LiteralDescription = LiteralDescription
   , _ldText         :: Maybe Text
   , _ldLinks        :: Maybe Text
   } deriving (Show, Generic)
+
+-- | Gets the file name and content for saving a product to a file
+fileAndProductName
+  :: FilePath -- ^ the path of the directory in which to save the product
+  -> LiteralDescription  -- ^ the product to save
+  -> (FilePath, Text)
+fileAndProductName dir ld = (fullName, content) where
+  mkName n = dir </> (unpack $  (normalize n))
+  fullName = maybe "" mkName $ _ldInternalName ld
+  content = maybe "" id $ _ldProductName ld
+  normalize = (<> ".yaml") . replace "/" "-"
+
 
 ldOptions :: Options
 ldOptions = defaultOptions { fieldLabelModifier = modifyFields }
