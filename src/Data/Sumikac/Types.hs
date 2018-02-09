@@ -4,7 +4,7 @@
 module Data.Sumikac.Types
   (
     LiteralDescription(..)
-  ,  Product(..)
+  , Product(..)
   , fileAndProductName
   , productBasename
   )
