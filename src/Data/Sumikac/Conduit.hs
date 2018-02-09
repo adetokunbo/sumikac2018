@@ -5,9 +5,9 @@ module Data.Sumikac.Conduit
   -- * Yaml Parsing functions
     convert1File
   , convertFilesInDir
-  , decodeYamlProducts
-  , decodeYamlStream
-  , decodeYamlStreamEither
+  , pipeProducts
+  , pipeDecoded
+  , pipeEitherDecoded
   , mkProductPipe
 
   -- * Useful functions
@@ -32,7 +32,8 @@ import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
 import           Data.Yaml                    (ParseException (..), decode,
                                                decodeEither')
-import           System.Directory             (doesFileExist)
+import           System.Directory             (createDirectoryIfMissing,
+                                               doesFileExist)
 import           System.FilePath
 
 import           Data.Sumikac.Types
@@ -43,21 +44,62 @@ mkLiteralDescriptionPipe
   => FilePath
   -> ConvertPipeline LiteralDescription o m
 mkLiteralDescriptionPipe dstDir = ConvertPipeline
-  { cpParse = decodeYamlLiteralDescription
+  { cpParse = decodedLiteralDescription
   , cpGo = yieldFileAndProductName dstDir .| CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
   , cpError = dumpParseException
   }
 
+-- | Specializes 'pipeDecoded' to yield 'LiteralDescription'
+decodedLiteralDescription
+  :: (Monad m, MonadThrow m)
+  => ConduitM ByteString (Either ParseException LiteralDescription) m ()
+decodedLiteralDescription = pipeEitherDecoded
+
+-- | Yields the filename and Yaml-encoded output of a 'Product'
+yieldFileAndProductName
+  :: (Monad m)
+  => FilePath
+  -> ConduitM LiteralDescription (FilePath, Text) m ()
+yieldFileAndProductName dstDir = CC.map $ fileAndProductName dstDir
+
 -- | Creates a 'ConvertPipeline' for 'Product'
 mkProductPipe
-  :: (MonadThrow m, MonadIO m)
+  :: (MonadThrow m, MonadIO m, MonadResource m)
   => FilePath
   -> ConvertPipeline Product o m
 mkProductPipe dstDir = ConvertPipeline
-  { cpParse = decodeYamlProducts
-  , cpGo = yieldNameAndContent dstDir .| CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
+  { cpParse = pipeProducts
+  , cpGo = yieldNameAndContent dstDir .| saveNameAndContent
   , cpError = dumpParseException
   }
+
+-- | Specializes 'pipeEitherDecoded' to yield 'Product'
+pipeProducts
+  :: (Monad m, MonadThrow m)
+  => ConduitM ByteString (Either ParseException Product) m ()
+pipeProducts = pipeEitherDecoded
+
+-- | Yields the filename and Yaml-encoded output of a 'Product'
+yieldNameAndContent
+  :: (Monad m)
+  => FilePath
+  -> ConduitM Product (FilePath, ByteString) m ()
+yieldNameAndContent dstDir = CC.map $ fileNameWithContent dstDir
+
+-- | Yields the filename and Yaml-encoded output of a 'Product'
+saveNameAndContent
+  :: (Monad m, MonadResource m)
+  => ConduitM (FilePath, ByteString) o m ()
+saveNameAndContent = awaitForever $ \(path, content) -> do
+  liftIO $ createDirectoryIfMissing True $ takeDirectory path
+  yield content .| CC.sinkFile path
+
+-- | To generate from the combined data
+-- save the products
+-- save the en descriptions
+-- scan the product directory, report on files that do not have product description pair
+-- forward pairs use the combined data-type to the html generator pipeline
+
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir
 --
@@ -114,50 +156,33 @@ dumpParseException
   => ConduitM ParseException o m ()
 dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
 
--- | Specializes 'decodeYamlStream' to yield 'LiteralDescription'
-decodeYamlLiteralDescription
-  :: (Monad m, MonadThrow m)
-  => ConduitM ByteString (Either ParseException LiteralDescription) m ()
-decodeYamlLiteralDescription = decodeYamlStreamEither
-
--- | Yields the filename and Yaml-encoded output of a 'Product'
-yieldFileAndProductName
-  :: (Monad m)
-  => FilePath
-  -> ConduitM LiteralDescription (FilePath, Text) m ()
-yieldFileAndProductName dstDir = CC.map $ fileAndProductName dstDir
-
--- | Specializes 'decodeYamlStream' to yield 'Product'
-decodeYamlProducts
-  :: (Monad m, MonadThrow m)
-  => ConduitM ByteString (Either ParseException Product) m ()
-decodeYamlProducts = decodeYamlStreamEither
-
--- | Yields the filename and Yaml-encoded output of a 'Product'
-yieldNameAndContent
-  :: (Monad m)
-  => FilePath
-  -> ConduitM Product (FilePath, ByteString) m ()
-yieldNameAndContent dstDir = CC.map $ fileNameWithContent dstDir
+-- | Splits the upstream 'ByteString' into objects decoded from Yaml documents
+-- | using 'Either' 'ParseException' to allow exception handling
+pipeEitherDecoded
+  :: (Monad m, MonadThrow m, FromJSON a)
+  => ConduitM ByteString (Either ParseException a) m ()
+pipeEitherDecoded = pipeYamlDocs .| CC.map decodeEither'
 
 -- | Splits the upstream 'ByteString' into objects decoded from Yaml documents
 -- | using 'Either' 'ParseException' to allow exception handling
-decodeYamlStreamEither
+pipeEitherDecodedKeep
   :: (Monad m, MonadThrow m, FromJSON a)
-  => ConduitM ByteString (Either ParseException a) m ()
-decodeYamlStreamEither = yamlDocStream .| CC.map decodeEither'
+  => ConduitM ByteString (Either ParseException (ByteString, a)) m ()
+pipeEitherDecodedKeep = pipeYamlDocs .| CC.map decodeAndKeep
+  where
+    decodeAndKeep x = ((,) x) <$> decodeEither' x
 
 -- | Splits the upstream 'ByteString' into objects decoded from Yaml documnets
-decodeYamlStream
+pipeDecoded
   :: (Monad m, MonadThrow m, FromJSON a)
   => ConduitM ByteString (Maybe a) m ()
-decodeYamlStream = yamlDocStream .| CC.map decode
+pipeDecoded = pipeYamlDocs .| CC.map decode
 
 -- | Splits the upstream 'ByteString' into Yaml documents
-yamlDocStream
+pipeYamlDocs
   :: (Monad m, MonadThrow m)
   => ConduitM ByteString ByteString m ()
-yamlDocStream =
+pipeYamlDocs =
   CT.decode CT.utf8
   .| byDashes
   .| CT.encode CT.utf8
