@@ -1,12 +1,17 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards   #-}
 module Data.Sumikac.Types
   (
     LiteralDescription(..)
+  , LabelledBlock(..)
+  , LitDesc(..)
   , Product(..)
+  , ShortDescription(..)
   , fileAndProductName
   , productBasename
+  , summarizeLD
   )
 where
 
@@ -16,6 +21,8 @@ import           Data.ByteString      (ByteString)
 import           Data.ByteString.Lazy (toStrict)
 import           Data.Char            (toUpper)
 import qualified Data.HashMap.Strict  as HM
+import           Data.Map             (Map)
+import qualified Data.Map             as Map
 import           Data.Monoid          ((<>))
 import           Data.Text            (Text, replace, unpack)
 import qualified Data.Text            as T
@@ -60,7 +67,10 @@ data Product = Product
   } deriving (Show, Generic)
 
 productOptions :: Options
-productOptions = defaultOptions { fieldLabelModifier = modifyFields }
+productOptions = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
   where modifyFields = transformFst toUpper . drop 1
 
 instance FromJSON Product where
@@ -93,11 +103,29 @@ parseNamedDimensions = withObject "manyDimensions" $ \o -> do
   inner <- mapM mk (HM.toList o)
   return NamedDimensions { unNamedDimensions = inner}
 
+drop3Options :: Options
+drop3Options = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
+  where modifyFields = transformFst toUpper . drop 3
+
 namedDimensionsToJSON :: NamedDimensions -> Value
 namedDimensionsToJSON = toJSON . HM.fromList . asList
   where
     asList = map toKeyValue . unNamedDimensions
     toKeyValue (NamedDimension n v) = (n,  toJSON v)
+
+-- | Gets the file name and content for saving a product to a file
+fileAndProductName
+  :: FilePath -- ^ the path of the directory in which to save the product
+  -> LiteralDescription  -- ^ the product to save
+  -> (FilePath, Text)
+fileAndProductName dir LiteralDescription{..} = (fullName, content) where
+  mkName n = dir </> (unpack $  (normalize n))
+  fullName = maybe "" mkName $ _ldInternalName
+  content = maybe "" id $ _ldProductName
+  normalize = (<> ".yaml") . replace "/" "-"
 
 -- | A 'LiteralDescription' is the literal form of the product descriptions
 -- in the description Yaml files.
@@ -112,33 +140,105 @@ namedDimensionsToJSON = toJSON . HM.fromList . asList
 data LiteralDescription = LiteralDescription
   { _ldInternalName :: Maybe Text
   , _ldLabel        :: Maybe Text
-  , _ldLanguage     :: Maybe Text
   , _ldProductName  :: Maybe Text
   , _ldText         :: Maybe Text
   , _ldLinks        :: Maybe [Text]
   , _idShownBy      :: Maybe [Text]
   } deriving (Show, Generic)
 
--- | Gets the file name and content for saving a product to a file
-fileAndProductName
-  :: FilePath -- ^ the path of the directory in which to save the product
-  -> LiteralDescription  -- ^ the product to save
-  -> (FilePath, Text)
-fileAndProductName dir ld = (fullName, content) where
-  mkName n = dir </> (unpack $  (normalize n))
-  fullName = maybe "" mkName $ _ldInternalName ld
-  content = maybe "" id $ _ldProductName ld
-  normalize = (<> ".yaml") . replace "/" "-"
-
-
-ldOptions :: Options
-ldOptions = defaultOptions { fieldLabelModifier = modifyFields }
-  where modifyFields = transformFst toUpper . drop 3
-
 instance FromJSON LiteralDescription where
-  parseJSON = genericParseJSON ldOptions
+  parseJSON = genericParseJSON drop3Options
 
 instance ToJSON LiteralDescription where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+-- | A 'FullDescription' is the form of a product's description
+-- that contains all relevant information about the product.
+--
+-- During parsing, these are generated from 'LiteralDescriptions'
+data FullDescription = FullDescription
+  { _fdInternalName :: Text
+  , _fdProductName  :: Text
+  , _fdDescription  :: Text
+  , _fdOverview     :: Maybe Text
+  , _fdUsage        :: Maybe Text
+  , _fdCare         :: Maybe Text
+  , _fdLinks        :: Maybe [Text]
+  } deriving (Show, Generic)
+
+instance ToJSON FullDescription where
+  toJSON = genericToJSON drop3Options
+
+-- | SomeDescriptions holds the state obtained from a sequence of related
+-- 'LiteralDescription' in order to derive the appropriate FullDescriptions
+-- from the sequence
+data SomeDescriptions = SomeDescriptions
+  { sdLinks        :: Maybe [Text]
+  , sdDescriptions :: Map Text FullDescription
+  }
+
+-- | Short Descriptions represent the most compact form
+--
+-- They contain the minimal description of the product, and any links that might
+-- occur in its paragraphs
+data ShortDescription = ShortDescription
+  { _sdInternalName :: Text
+  , _sdProductName  :: Text
+  , _sdLinks        :: Maybe [Text]
+  } deriving (Show, Generic)
+
+instance FromJSON ShortDescription where
+  parseJSON = genericParseJSON drop3Options
+
+instance ToJSON ShortDescription where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+-- | LabelledBlock holds text for display under a given heading.
+--
+-- It includes a list of the internal names it is to be shown for
+data LabelledBlock = LabelledBlock
+  { _lbLabel   :: Text
+  , _lbText    :: Text
+  , _lbShownBy :: Maybe [Text]
+  } deriving (Show, Generic)
+
+instance FromJSON LabelledBlock where
+  parseJSON = genericParseJSON drop3Options
+
+instance ToJSON LabelledBlock where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+-- | Summarizes the contents of a 'LitDesc'
+summarizeLD
+  :: LitDesc  -- ^ the product to save
+  -> (FilePath, Text)
+summarizeLD (Block LabelledBlock{..}) = ("Label", _lbLabel)
+summarizeLD (Short ShortDescription{..}) = (fullName, _sdProductName) where
+  fullName = (unpack . normalize) _sdInternalName
+  normalize = (<> ".yaml") . replace "/" "-"
+
+-- | LitDesc is an alternative to LiteralDescription that will replace it if
+-- tests OK
+--
+-- It acknowledges that there are in fact two distinct data formats present in the literal yaml streams, and attempts to parse these directly
+data LitDesc
+  = Block LabelledBlock
+  | Short ShortDescription
+  deriving (Show, Generic)
+
+ldOptions :: Options
+ldOptions = defaultOptions
+  { sumEncoding = UntaggedValue
+  , omitNothingFields = True
+  }
+
+instance FromJSON LitDesc where
+  parseJSON = genericParseJSON ldOptions
+
+instance ToJSON LitDesc where
   toJSON = genericToJSON ldOptions
   toEncoding = genericToEncoding ldOptions
 
