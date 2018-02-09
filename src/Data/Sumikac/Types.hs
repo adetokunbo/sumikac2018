@@ -5,8 +5,8 @@ module Data.Sumikac.Types
   (
     LiteralDescription(..)
   ,  Product(..)
-  , fileNameWithContent
   , fileAndProductName
+  , productBasename
   )
 where
 
@@ -28,15 +28,11 @@ import           System.FilePath
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
 -- Chopsticks_and_Soap_Rest, there is ManyDimensions, that is just not handled
 
--- | Gets the file name and content for saving a product to a file
-fileNameWithContent
-  :: FilePath -- ^ the path of the directory in which to save the product
-  -> Product  -- ^ the product to save
-  -> (FilePath, ByteString)
-fileNameWithContent dir prod = (fullName, content) where
-  fullName = dir </> (unpack $  (normalize . _internalName) prod)
-  content = (toStrict . encode) prod
-  normalize = (<> ".yaml") . replace "/" "-"
+-- | Gets the basename of a file that content relating the product should be saved
+productBasename :: Product -> FilePath
+productBasename = unpack . normalize . _internalName
+  where
+      normalize = (<> ".yaml") . replace "/" "-"
 
 -- A 'Product' is the core item that the sumikacrafts website gives access to
 -- the public

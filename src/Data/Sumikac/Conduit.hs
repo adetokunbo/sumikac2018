@@ -66,10 +66,10 @@ yieldFileAndProductName dstDir = CC.map $ fileAndProductName dstDir
 mkProductPipe
   :: (MonadThrow m, MonadIO m, MonadResource m)
   => FilePath
-  -> ConvertPipeline Product o m
+  -> ConvertPipeline (ByteString, Product) o m
 mkProductPipe dstDir = ConvertPipeline
-  { cpParse = pipeProducts
-  , cpGo = yieldNameAndContent dstDir .| saveNameAndContent
+  { cpParse = pipeProductsKeep
+  , cpGo = yieldNameAndContent dstDir .| saveContent
   , cpError = dumpParseException
   }
 
@@ -79,18 +79,25 @@ pipeProducts
   => ConduitM ByteString (Either ParseException Product) m ()
 pipeProducts = pipeEitherDecoded
 
+-- | Specializes 'pipeEitherDecodedKeep' to yield 'Product'
+pipeProductsKeep
+  :: (Monad m, MonadThrow m)
+  => ConduitM ByteString (Either ParseException (ByteString, Product)) m ()
+pipeProductsKeep = pipeEitherDecodedKeep
+
 -- | Yields the filename and Yaml-encoded output of a 'Product'
 yieldNameAndContent
   :: (Monad m)
   => FilePath
-  -> ConduitM Product (FilePath, ByteString) m ()
-yieldNameAndContent dstDir = CC.map $ fileNameWithContent dstDir
+  -> ConduitM (ByteString, Product) (FilePath, ByteString) m ()
+yieldNameAndContent dstDir = CC.map go where
+  go (content, p) = (dstDir </> productBasename p, content)
 
 -- | Yields the filename and Yaml-encoded output of a 'Product'
-saveNameAndContent
+saveContent
   :: (Monad m, MonadResource m)
   => ConduitM (FilePath, ByteString) o m ()
-saveNameAndContent = awaitForever $ \(path, content) -> do
+saveContent = awaitForever $ \(path, content) -> do
   liftIO $ createDirectoryIfMissing True $ takeDirectory path
   yield content .| CC.sinkFile path
 
@@ -164,7 +171,8 @@ pipeEitherDecoded
 pipeEitherDecoded = pipeYamlDocs .| CC.map decodeEither'
 
 -- | Splits the upstream 'ByteString' into objects decoded from Yaml documents
--- | using 'Either' 'ParseException' to allow exception handling
+-- | using 'Either' 'ParseException' to allow exception handling, and keeps
+-- | the input in Tuple with the output
 pipeEitherDecodedKeep
   :: (Monad m, MonadThrow m, FromJSON a)
   => ConduitM ByteString (Either ParseException (ByteString, a)) m ()
