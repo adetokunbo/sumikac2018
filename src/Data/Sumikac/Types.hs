@@ -1,28 +1,33 @@
 {-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 module Data.Sumikac.Types
   (
-    LiteralDescription(..)
+    DescAccum(..)
+  , LiteralDescription(..)
   , LabelledBlock(..)
   , LitDesc(..)
   , Product(..)
-  , ShortDescription(..)
+  , ShortDesc(..)
   , fileAndProductName
   , productBasename
   , summarizeLD
   )
 where
 
+import           Control.Applicative
 import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.ByteString      (ByteString)
 import           Data.ByteString.Lazy (toStrict)
 import           Data.Char            (toUpper)
+import           Data.Foldable        (foldl')
 import qualified Data.HashMap.Strict  as HM
-import           Data.Map             (Map)
-import qualified Data.Map             as Map
+import           Data.Map.Strict      (Map)
+import qualified Data.Map.Strict      as Map
+import           Data.Maybe
 import           Data.Monoid          ((<>))
 import           Data.Text            (Text, replace, unpack)
 import qualified Data.Text            as T
@@ -39,7 +44,7 @@ import           System.FilePath
 productBasename :: Product -> FilePath
 productBasename = unpack . normalize . _internalName
   where
-      normalize = (<> ".yaml") . replace "/" "-"
+    normalize = (<> ".yaml") . replace "/" "-"
 
 -- A 'Product' is the core item that the sumikacrafts website gives access to
 -- the public
@@ -71,7 +76,8 @@ productOptions = defaultOptions
   { fieldLabelModifier = modifyFields
   , omitNothingFields = True
   }
-  where modifyFields = transformFst toUpper . drop 1
+  where
+    modifyFields = transformFst toUpper . drop 1
 
 instance FromJSON Product where
   parseJSON = genericParseJSON productOptions
@@ -108,7 +114,8 @@ drop3Options = defaultOptions
   { fieldLabelModifier = modifyFields
   , omitNothingFields = True
   }
-  where modifyFields = transformFst toUpper . drop 3
+  where
+    modifyFields = transformFst toUpper . drop 3
 
 namedDimensionsToJSON :: NamedDimensions -> Value
 namedDimensionsToJSON = toJSON . HM.fromList . asList
@@ -153,45 +160,40 @@ instance ToJSON LiteralDescription where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
--- | A 'FullDescription' is the form of a product's description
--- that contains all relevant information about the product.
+-- | LitDesc is an alternative to LiteralDescription that will replace it if
+-- tests OK
 --
--- During parsing, these are generated from 'LiteralDescriptions'
-data FullDescription = FullDescription
-  { _fdInternalName :: Text
-  , _fdProductName  :: Text
-  , _fdDescription  :: Text
-  , _fdOverview     :: Maybe Text
-  , _fdUsage        :: Maybe Text
-  , _fdCare         :: Maybe Text
-  , _fdLinks        :: Maybe [Text]
-  } deriving (Show, Generic)
+-- It acknowledges that there are in fact two distinct data formats present in the literal yaml streams, and attempts to parse these directly
+data LitDesc
+  = Block LabelledBlock
+  | Short ShortDesc
+  deriving (Show, Generic)
 
-instance ToJSON FullDescription where
-  toJSON = genericToJSON drop3Options
-
--- | SomeDescriptions holds the state obtained from a sequence of related
--- 'LiteralDescription' in order to derive the appropriate FullDescriptions
--- from the sequence
-data SomeDescriptions = SomeDescriptions
-  { sdLinks        :: Maybe [Text]
-  , sdDescriptions :: Map Text FullDescription
+ldOptions :: Options
+ldOptions = defaultOptions
+  { sumEncoding = UntaggedValue
+  , omitNothingFields = True
   }
 
--- | Short Descriptions represent the most compact form
---
--- They contain the minimal description of the product, and any links that might
--- occur in its paragraphs
-data ShortDescription = ShortDescription
+instance FromJSON LitDesc where
+  parseJSON = genericParseJSON ldOptions
+
+instance ToJSON LitDesc where
+  toJSON = genericToJSON ldOptions
+  toEncoding = genericToEncoding ldOptions
+
+-- | Short Descriptions are a minimal description of the product, along with any
+-- links that might occur in its paragraphs
+data ShortDesc = ShortDesc
   { _sdInternalName :: Text
   , _sdProductName  :: Text
   , _sdLinks        :: Maybe [Text]
   } deriving (Show, Generic)
 
-instance FromJSON ShortDescription where
+instance FromJSON ShortDesc where
   parseJSON = genericParseJSON drop3Options
 
-instance ToJSON ShortDescription where
+instance ToJSON ShortDesc where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
@@ -212,35 +214,102 @@ instance ToJSON LabelledBlock where
   toEncoding = genericToEncoding drop3Options
 
 -- | Summarizes the contents of a 'LitDesc'
-summarizeLD
-  :: LitDesc  -- ^ the product to save
-  -> (FilePath, Text)
+summarizeLD :: LitDesc -> (FilePath, Text)
 summarizeLD (Block LabelledBlock{..}) = ("Label", _lbLabel)
-summarizeLD (Short ShortDescription{..}) = (fullName, _sdProductName) where
-  fullName = (unpack . normalize) _sdInternalName
-  normalize = (<> ".yaml") . replace "/" "-"
+summarizeLD (Short ShortDesc{..}) = (fullName, _sdProductName)
+  where
+    fullName = (unpack . normalize) _sdInternalName
+    normalize = (<> ".yaml") . replace "/" "-"
 
--- | LitDesc is an alternative to LiteralDescription that will replace it if
--- tests OK
---
--- It acknowledges that there are in fact two distinct data formats present in the literal yaml streams, and attempts to parse these directly
-data LitDesc
-  = Block LabelledBlock
-  | Short ShortDescription
-  deriving (Show, Generic)
+-- The Section names and ProductIds are both 'Text' values
+type Section = Text
+type ProductId = Text
 
-ldOptions :: Options
-ldOptions = defaultOptions
-  { sumEncoding = UntaggedValue
-  , omitNothingFields = True
+-- | Sections contains named textual sections of the description
+type Sections = Map Section Text
+
+-- | CommonDesc contains the description data shared between the different
+-- products.
+data CommonDesc = CommonDesc
+  { cdLinks    :: Maybe [Text] -- ^ all the links of all products in the files
+  , cdSections :: Sections     -- ^ the global sections
   }
 
-instance FromJSON LitDesc where
-  parseJSON = genericParseJSON ldOptions
+-- | SoloDesc contains description data that is specific to a product
+data SoloDesc = SoloDesc (Maybe ShortDesc) Sections
 
-instance ToJSON LitDesc where
-  toJSON = genericToJSON ldOptions
-  toEncoding = genericToEncoding ldOptions
+-- | DescAccum contains both the shared description and all the solo product descriptions.
+-- DescAccum is used to produce a sequence of
+data DescAccum = DescAccum CommonDesc (Map ProductId SoloDesc)
+
+-- | Add a 'LitDesc' to a 'DescAccum'
+addLitDesc :: DescAccum -> LitDesc -> DescAccum
+
+addLitDesc (DescAccum cd@CommonDesc {..} solos) (Block LabelledBlock {..}) =
+  case _lbShownBy of
+    -- Either add the section from the block to the common sections
+    Nothing      -> DescAccum cd {cdSections = cdSections'} solos
+
+    -- Or add it the SoloDesc for each name
+    (Just names) -> DescAccum cd $ foldMap (Map.alter addSection) names solos
+  where
+    section' = Map.singleton _lbLabel _lbText
+    cdSections' = cdSections <> section'
+
+    addSection Nothing                 = Just $ SoloDesc Nothing $ section'
+    addSection (Just (SoloDesc sd ss)) = Just $ SoloDesc sd (ss <> section')
+
+addLitDesc (DescAccum cd@CommonDesc {..} solos) (Short sd@ShortDesc {..}) =
+  let
+    solos' = Map.alter addSection _sdInternalName solos
+    cdLinks' = mergeLinks cdLinks _sdLinks
+  in
+    DescAccum cd {cdLinks = cdLinks'} solos'
+  where
+    -- Update the common links if possible
+    mergeLinks (Just x) (Just y) = Just (x <> y)
+    mergeLinks x y               = x <|> y
+
+    -- Add the short desc to the appropriate SoloDesc
+    addSection Nothing                = Just $ SoloDesc (Just sd) Map.empty
+    addSection (Just (SoloDesc _ ss)) = Just $ SoloDesc (Just sd) ss
+
+-- | A 'FullDesc' contains contains all relevant information about the product.
+data FullDesc = FullDesc
+  { _fdInternalName  :: Text
+  , _fdProductName   :: Text
+  , _fdDescription   :: Maybe Text
+  , _fdLinks         :: Maybe [Text]
+  , _fdOverview      :: Maybe Text
+  , _fdOtherSections :: Map Section Text
+  } deriving (Show, Generic)
+
+instance FromJSON FullDesc where
+  parseJSON = genericParseJSON drop3Options
+
+instance ToJSON FullDesc where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+asFullDescs :: DescAccum -> [FullDesc]
+asFullDescs (DescAccum CommonDesc {..} solos) =
+  -- drop any productId where there is no ShortDesc; TODO log the dropped productIds
+  catMaybes $ map (convert . snd) $ Map.toList solos
+  where
+    convert (SoloDesc Nothing _) = Nothing
+    convert (SoloDesc (Just ShortDesc {..}) sections) =
+      let sections' = Map.unionWith (\x y -> x) sections cdSections
+          filterOthers = Map.filterWithKey others
+          others k _ = k /= "Description" && k /= "Overview"
+      in
+        Just FullDesc
+        { _fdInternalName = _sdInternalName
+        , _fdProductName = _sdProductName
+        , _fdDescription = Map.lookup "Description" sections'
+        , _fdLinks = cdLinks
+        , _fdOverview = Map.lookup "Overview" sections'
+        , _fdOtherSections = filterOthers sections'
+        }
 
 -- | Transform first letter of 'String' using the function given.
 transformFst :: (Char -> Char) -> String -> String
