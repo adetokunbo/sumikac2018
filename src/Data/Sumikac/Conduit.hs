@@ -203,7 +203,8 @@ pipeYamlDocs =
   .| byDashes
   .| CT.encode CT.utf8
   .| (CC.filter $ not . BS.null)
-  where byDashes = groupBySep $ \x -> x == "---"
+  where
+    byDashes = groupBySep $ \x -> x == "---"
 
 -- | Splits the upstream 'Text' into chunks bounded by
 -- | separator lines that match the predicate
