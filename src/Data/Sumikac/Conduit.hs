@@ -29,7 +29,7 @@ import qualified Data.Conduit.Text            as CT
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
-import           Data.Yaml                    (ParseException (..), decode,
+import           Data.Yaml                    (ParseException (..), encode, decode,
                                                decodeEither')
 import           System.Directory             (createDirectoryIfMissing,
                                                doesFileExist)
@@ -43,19 +43,34 @@ import           Data.Sumikac.Types
 -- scan the product directory, report on files that do not have product description pair
 -- forward pairs use the combined data-type to the html generator pipeline
 
+-- | Run the pipes that regenerate the site
+runAll
+  :: FilePath -- ^ the source directory when the files are download to
+  -> FilePath -- ^ the destination directory to where the files are saved
+  -> IO ()
+runAll src dst = do
+  let descDir = src </> "Description/English"
+  runConduitRes $ convertFilesInDir descDir dst $ mkLitDescPipe dst
+  runConduitRes $ convertFilesInDir src dst $ mkProductPipe dst
+
 -- | Creates a 'ConvertPipeline' for 'LitDesc'
 mkLitDescPipe
-  :: (MonadThrow m, MonadIO m)
-  => ConvertPipeline LitDesc o m
-mkLitDescPipe = ConvertPipeline
+  :: (MonadThrow m, MonadIO m, MonadResource m)
+  => FilePath -- ^ the destination directory
+  -> ConvertPipeline LitDesc o m
+mkLitDescPipe d = ConvertPipeline
   { cpParse = pipeLitDesc
-  , cpGo = summarize .| toStdout
+  , cpGo = fullDescs .| findPath .| save
   , cpError = dumpParseException
   }
   where
-    showBoth (name, content) = Text.pack name <> "\n" <> content
-    summarize = CC.map summarizeLD .| CC.map showBoth
-    toStdout = CC.map Text.unpack .| CC.unlines .| CC.map pack .| CC.stdout
+    fullDescs = do
+      accum <- CC.foldl addLitDesc descAccum
+      CC.yieldMany $ asFullDescs accum
+
+    findPath = CC.map (\fd -> (outPath fd, encode fd))
+      where
+        outPath fd = d </> fullDescBasename fd
 
 -- | Specializes 'pipeEitherDecoded' for 'LitDesc'
 pipeLitDesc
@@ -81,16 +96,17 @@ mkProductPipe d = ConvertPipeline
     findPath dstDir = CC.map go where
       go (content, p) = (dstDir </> productBasename p, content)
 
-    save :: (Monad m, MonadResource m) => ConduitM (FilePath, ByteString) o m ()
-    save = awaitForever $ \(path, content) -> do
-      liftIO $ createDirectoryIfMissing True $ takeDirectory path
-      yield content .| CC.sinkFile path
-
 -- | Specializes 'pipeEitherDecodedKeep' for 'Product'
 pipeProductsKeep
   :: (Monad m, MonadThrow m)
   => ConduitM ByteString (Either ParseException (ByteString, Product)) m ()
 pipeProductsKeep = pipeEitherDecodedKeep
+
+-- | Saves the upstream content to the indicated path
+save :: (Monad m, MonadResource m) => ConduitM (FilePath, ByteString) o m ()
+save = awaitForever $ \(path, content) -> do
+  liftIO $ createDirectoryIfMissing True $ takeDirectory path
+  yield content .| CC.sinkFile path
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir
 --

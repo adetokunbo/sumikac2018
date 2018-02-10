@@ -5,12 +5,20 @@
 {-# LANGUAGE RecordWildCards   #-}
 module Data.Sumikac.Types
   (
-    DescAccum(..)
-  , LabelledBlock(..)
-  , LitDesc(..)
-  , Product(..)
-  , ShortDesc(..)
+    -- Products
+    Product(..)
   , productBasename
+
+    -- Description
+  , DescAccum(..)
+  , FullDesc(..)
+  , LitDesc(..)
+  , LabelledBlock(..)
+  , ShortDesc(..)
+  , addLitDesc
+  , asFullDescs
+  , descAccum
+  , fullDescBasename
   , summarizeLD
   )
 where
@@ -38,11 +46,9 @@ import           System.FilePath
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
 -- Chopsticks_and_Soap_Rest, there is ManyDimensions, that is just not handled
 
--- | Gets the basename of a file that content relating the product should be saved
+-- | The basename of the path where the 'Product' should be saved
 productBasename :: Product -> FilePath
-productBasename = unpack . normalize . _internalName
-  where
-    normalize = (<> ".yaml") . replace "/" "-"
+productBasename = mkBasename ".yaml" . _internalName
 
 -- A 'Product' is the core item that the sumikacrafts website gives access to
 -- the public
@@ -182,12 +188,12 @@ summarizeLD (Short ShortDesc{..}) = (fullName, _sdProductName)
     fullName = (unpack . normalize) _sdInternalName
     normalize = (<> ".yaml") . replace "/" "-"
 
--- The Section names and ProductIds are both 'Text' values
-type Section = Text
+-- The Label names and ProductIds are both 'Text' values
+type Label = Text
 type ProductId = Text
 
 -- | Sections contains named textual sections of the description
-type Sections = Map Section Text
+type Sections = Map Label Text
 
 -- | CommonDesc contains the description data shared between the different
 -- products.
@@ -202,6 +208,10 @@ data SoloDesc = SoloDesc (Maybe ShortDesc) Sections
 -- | DescAccum contains both the shared description and all the solo product descriptions.
 -- DescAccum is used to produce a sequence of
 data DescAccum = DescAccum CommonDesc (Map ProductId SoloDesc)
+
+-- | A descAccum with nothing added to it
+descAccum :: DescAccum
+descAccum = DescAccum CommonDesc{cdLinks=Nothing, cdSections=Map.empty} Map.empty
 
 -- | Add a 'LitDesc' to a 'DescAccum'
 addLitDesc :: DescAccum -> LitDesc -> DescAccum
@@ -235,6 +245,11 @@ addLitDesc (DescAccum cd@CommonDesc {..} solos) (Short sd@ShortDesc {..}) =
     addSection Nothing                = Just $ SoloDesc (Just sd) Map.empty
     addSection (Just (SoloDesc _ ss)) = Just $ SoloDesc (Just sd) ss
 
+
+-- | The basename of the path where the 'Product' should be saved
+fullDescBasename :: FullDesc -> FilePath
+fullDescBasename = mkBasename "-descs.yaml" .  _fdInternalName
+
 -- | A 'FullDesc' contains contains all relevant information about the product.
 data FullDesc = FullDesc
   { _fdInternalName  :: Text
@@ -242,7 +257,7 @@ data FullDesc = FullDesc
   , _fdDescription   :: Maybe Text
   , _fdLinks         :: Maybe [Text]
   , _fdOverview      :: Maybe Text
-  , _fdOtherSections :: Map Section Text
+  , _fdOtherSections :: Map Label Text
   } deriving (Show, Generic)
 
 instance FromJSON FullDesc where
@@ -276,3 +291,7 @@ asFullDescs (DescAccum CommonDesc {..} solos) =
 transformFst :: (Char -> Char) -> String -> String
 transformFst _ []     = []
 transformFst f (x:xs) = (f x):xs
+
+-- | Make files basename given its extension
+mkBasename :: Text -> Text -> FilePath
+mkBasename ext = unpack . (<> ext) . replace "/" "-"
