@@ -63,30 +63,6 @@ pipeLitDesc
   => ConduitM ByteString (Either ParseException LitDesc) m ()
 pipeLitDesc = pipeEitherDecoded
 
--- | Creates a 'ConvertPipeline' for 'LiteralDescription'
-mkLiteralDescriptionPipe
-  :: (MonadThrow m, MonadIO m)
-  => FilePath -- ^ the destination directory
-  -> ConvertPipeline LiteralDescription o m
-mkLiteralDescriptionPipe d = ConvertPipeline
-  { cpParse = pipeLiteralDescriptions
-  , cpGo = yieldFileAndProductName d .| CC.map fst .| CC.unlines .| CC.map pack .| CC.stdout
-  , cpError = dumpParseException
-  }
-
--- | Specializes 'pipeEitherDecoded' for 'LitDesc'
-pipeLiteralDescriptions
-  :: (Monad m, MonadThrow m)
-  => ConduitM ByteString (Either ParseException LiteralDescription) m ()
-pipeLiteralDescriptions = pipeEitherDecoded
-
--- | Yields the filename and Yaml-encoded output of a 'Product'
-yieldFileAndProductName
-  :: (Monad m)
-  => FilePath
-  -> ConduitM LiteralDescription (FilePath, Text) m ()
-yieldFileAndProductName dstDir = CC.map $ fileAndProductName dstDir
-
 -- | Creates a 'ConvertPipeline' for 'Product'
 mkProductPipe
   :: (MonadThrow m, MonadIO m, MonadResource m)

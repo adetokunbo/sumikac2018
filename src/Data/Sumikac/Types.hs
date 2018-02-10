@@ -6,12 +6,10 @@
 module Data.Sumikac.Types
   (
     DescAccum(..)
-  , LiteralDescription(..)
   , LabelledBlock(..)
   , LitDesc(..)
   , Product(..)
   , ShortDesc(..)
-  , fileAndProductName
   , productBasename
   , summarizeLD
   )
@@ -122,43 +120,6 @@ namedDimensionsToJSON = toJSON . HM.fromList . asList
   where
     asList = map toKeyValue . unNamedDimensions
     toKeyValue (NamedDimension n v) = (n,  toJSON v)
-
--- | Gets the file name and content for saving a product to a file
-fileAndProductName
-  :: FilePath -- ^ the path of the directory in which to save the product
-  -> LiteralDescription  -- ^ the product to save
-  -> (FilePath, Text)
-fileAndProductName dir LiteralDescription{..} = (fullName, content) where
-  mkName n = dir </> (unpack $  (normalize n))
-  fullName = maybe "" mkName $ _ldInternalName
-  content = maybe "" id $ _ldProductName
-  normalize = (<> ".yaml") . replace "/" "-"
-
--- | A 'LiteralDescription' is the literal form of the product descriptions
--- in the description Yaml files.
---
--- The form is compact; descriptions for multiple products from a given
--- manufacturer often use the same text, so the files are organized so that
--- entries for products can share descriptions - any text that is shared is only
--- written once.
---
--- This means that often the literal entries in a given file may be related to
--- each other.
-data LiteralDescription = LiteralDescription
-  { _ldInternalName :: Maybe Text
-  , _ldLabel        :: Maybe Text
-  , _ldProductName  :: Maybe Text
-  , _ldText         :: Maybe Text
-  , _ldLinks        :: Maybe [Text]
-  , _idShownBy      :: Maybe [Text]
-  } deriving (Show, Generic)
-
-instance FromJSON LiteralDescription where
-  parseJSON = genericParseJSON drop3Options
-
-instance ToJSON LiteralDescription where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
 
 -- | LitDesc is an alternative to LiteralDescription that will replace it if
 -- tests OK
