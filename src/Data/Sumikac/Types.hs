@@ -6,7 +6,9 @@
 module Data.Sumikac.Types
   (
     -- Products
-    Product(..)
+    FullProduct(..)
+  , Product(..)
+  , fullProductBasename
   , productBasename
 
     -- Description
@@ -44,9 +46,27 @@ import           System.FilePath
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
--- Chopsticks_and_Soap_Rest, there is ManyDimensions, that is just not handled
 
--- | The basename of the path where the 'Product' should be saved
+-- | The basename of the path to store the encoded 'FullProduct'
+fullProductBasename :: FullProduct-> FilePath
+fullProductBasename =
+  mkBasename "-complete.yaml" .  _fdInternalName . _fpFullDesc
+
+-- | FullProduct provies the information about a given product from different
+-- sources in a single
+data FullProduct = FullProduct
+  { _fpProduct :: Product
+  , _fpFullDesc :: FullDesc
+  } deriving (Show, Generic)
+
+instance FromJSON FullProduct where
+  parseJSON = genericParseJSON drop3Options
+
+instance ToJSON FullProduct where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+-- | The basename of the path to store the encoded 'Product'
 productBasename :: Product -> FilePath
 productBasename = mkBasename ".yaml" . _internalName
 
@@ -67,7 +87,6 @@ data Product = Product
   , _originalName        :: Maybe Text
   , _patterns            :: Maybe [Text]
   , _price               :: Text -- a currency quantity
-  , _productName         :: Text
   , _setSizes            :: Maybe [Int]
   , _shape               :: Maybe [Text]
   , _supplier            :: Maybe Text
@@ -113,24 +132,15 @@ parseNamedDimensions = withObject "manyDimensions" $ \o -> do
   inner <- mapM mk (HM.toList o)
   return NamedDimensions { unNamedDimensions = inner}
 
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
-
 namedDimensionsToJSON :: NamedDimensions -> Value
 namedDimensionsToJSON = toJSON . HM.fromList . asList
   where
     asList = map toKeyValue . unNamedDimensions
     toKeyValue (NamedDimension n v) = (n,  toJSON v)
 
--- | LitDesc is an alternative to LiteralDescription that will replace it if
--- tests OK
+-- | LitDesc models the literal descripion Yaml as two distinct data formats
 --
--- It acknowledges that there are in fact two distinct data formats present in the literal yaml streams, and attempts to parse these directly
+-- One is a short description, the other a block of text with a label
 data LitDesc
   = Block LabelledBlock
   | Short ShortDesc
@@ -245,8 +255,7 @@ addLitDesc (DescAccum cd@CommonDesc {..} solos) (Short sd@ShortDesc {..}) =
     addSection Nothing                = Just $ SoloDesc (Just sd) Map.empty
     addSection (Just (SoloDesc _ ss)) = Just $ SoloDesc (Just sd) ss
 
-
--- | The basename of the path where the 'Product' should be saved
+-- | The basename of the path to store the encoded 'FullDesc'
 fullDescBasename :: FullDesc -> FilePath
 fullDescBasename = mkBasename "-descs.yaml" .  _fdInternalName
 
@@ -295,3 +304,11 @@ transformFst f (x:xs) = (f x):xs
 -- | Make files basename given its extension
 mkBasename :: Text -> Text -> FilePath
 mkBasename ext = unpack . (<> ext) . replace "/" "-"
+
+drop3Options :: Options
+drop3Options = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
+  where
+    modifyFields = transformFst toUpper . drop 3
