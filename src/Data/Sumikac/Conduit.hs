@@ -40,11 +40,6 @@ import           System.FilePath
 
 import           Data.Sumikac.Types
 
--- FileContents are the entire contents for reading a file
-type FileContents = ByteString
-
--- YamlDoc is a Yaml Document; there may be several of these in a file
-type YamlDoc = ByteString
 
 -- | Run the pipes that regenerate the site
 runAll
@@ -55,6 +50,46 @@ runAll src dst = do
   let descDir = src </> "Description/English"
   runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
   runConduitRes $ convertFilesIn src $ mkProductPipe dst
+
+-- | Process the target YAML files in a srcDir into outputs in dstDir
+--
+-- E.g, to process all the product info files in srcDir
+-- @
+--   runConduitRes $ convertFilesIn srcDir dstDir $ mkProductPipe dstDir
+-- @
+convertFilesIn
+  :: (MonadIO m, MonadResource m)
+  => FilePath -- ^ the source directory
+  -> ConvertPipeline j o m
+  -> ConduitM i o m ()
+convertFilesIn srcDir pipe =
+  CF.sourceDirectory srcDir
+  .| CC.filterM (liftIO . doesFileExist)
+  .| awaitForever go
+  where
+    go f = do
+      liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
+      convert1File (CC.sourceFile f) pipe
+
+-- | Processes a target yaml file using a pipeline that places output in dstDir
+--
+-- E.g, to process a single file product file
+-- @
+--   runConduitRes $ convert1File dstDir source $ mkProductPipe dstDir
+-- @
+convert1File
+  :: (MonadIO m, MonadThrow m)
+  => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
+  -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
+  -> ConduitM i o m ()
+convert1File source ConvertPipeline{..} =
+  source .| handleEither cpError cpParse cpGo
+
+-- FileContents are the entire contents for reading a file
+type FileContents = ByteString
+
+-- YamlDoc is a Yaml Document; there may be several of these in a file
+type YamlDoc = ByteString
 
 -- | Creates a 'ConvertPipeline' for 'LitDesc'
 mkLitDescPipe
@@ -121,40 +156,6 @@ save = awaitForever $ \(path, content) -> do
   liftIO $ createDirectoryIfMissing True $ takeDirectory path
   yield content .| CC.sinkFile path
   yield (path, content)
-
--- | Process the target YAML files in a srcDir into outputs in dstDir
---
--- E.g, to process all the product info files in srcDir
--- @
---   runConduitRes $ convertFilesIn srcDir dstDir $ mkProductPipe dstDir
--- @
-convertFilesIn
-  :: (MonadIO m, MonadResource m)
-  => FilePath -- ^ the source directory
-  -> ConvertPipeline j o m
-  -> ConduitM i o m ()
-convertFilesIn srcDir pipe =
-  CF.sourceDirectory srcDir
-  .| CC.filterM (liftIO . doesFileExist)
-  .| awaitForever go
-  where
-    go f = do
-      liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
-      convert1File (CC.sourceFile f) pipe
-
--- | Processes a target yaml file using a pipeline that places output in dstDir
---
--- E.g, to process a single file product file
--- @
---   runConduitRes $ convert1File dstDir source $ mkProductPipe dstDir
--- @
-convert1File
-  :: (MonadIO m, MonadThrow m)
-  => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
-  -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
-  -> ConduitM i o m ()
-convert1File source ConvertPipeline{..} =
-  source .| handleEither cpError cpParse cpGo
 
 -- | Generalize handling errors for Conduits that produce Either
 handleEither
