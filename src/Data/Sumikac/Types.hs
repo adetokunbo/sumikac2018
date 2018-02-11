@@ -55,7 +55,7 @@ fullProductBasename =
 -- | FullProduct provies the information about a given product from different
 -- sources in a single
 data FullProduct = FullProduct
-  { _fpProduct :: Product
+  { _fpProduct  :: Product
   , _fpFullDesc :: FullDesc
   } deriving (Show, Generic)
 
@@ -227,12 +227,15 @@ descAccum = DescAccum CommonDesc{cdLinks=Nothing, cdSections=Map.empty} Map.empt
 addLitDesc :: DescAccum -> LitDesc -> DescAccum
 
 addLitDesc (DescAccum cd@CommonDesc {..} solos) (Block LabelledBlock {..}) =
-  case _lbShownBy of
-    -- Either add the section from the block to the common sections
-    Nothing      -> DescAccum cd {cdSections = cdSections'} solos
+  let
+    addSectionToAll = foldl' (flip $ Map.alter addSection) solos
+  in
+    case _lbShownBy of
+      -- Either add the section from the block to the common sections
+      Nothing           -> DescAccum cd {cdSections = cdSections'} solos
 
-    -- Or add it the SoloDesc for each name
-    (Just names) -> DescAccum cd $ foldMap (Map.alter addSection) names solos
+      -- Or add it the SoloDesc for each name
+      (Just productIds) -> DescAccum cd $ addSectionToAll productIds
   where
     section' = Map.singleton _lbLabel _lbText
     cdSections' = cdSections <> section'
