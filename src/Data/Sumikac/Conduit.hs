@@ -1,14 +1,16 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE RecordWildCards      #-}
 module Data.Sumikac.Conduit
   (
-  -- * Yaml Parsing functions
-    convert1File
-  , convertFilesInDir
+  -- * Yaml Parsing
+    ConvertPipeline(..)
+  , convert1File
+  , convertFilesIn
   , pipeDecoded
   , pipeEitherDecoded
   , mkProductPipe
+  , mkLitDescPipe
 
   -- * Useful functions
   , groupBySep
@@ -30,19 +32,13 @@ import qualified Data.Conduit.Text            as CT
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
 import qualified Data.Text                    as Text
-import           Data.Yaml                    (ParseException (..), encode, decode,
-                                               decodeEither')
+import           Data.Yaml                    (ParseException (..), decode,
+                                               decodeEither', encode)
 import           System.Directory             (createDirectoryIfMissing,
                                                doesFileExist)
 import           System.FilePath
 
 import           Data.Sumikac.Types
-
--- | To generate from the combined data
--- save the products
--- save the en descriptions
--- scan the product directory, report on files that do not have product description pair
--- forward pairs use the combined data-type to the html generator pipeline
 
 -- FileContents are the entire contents for reading a file
 type FileContents = ByteString
@@ -57,8 +53,8 @@ runAll
   -> IO ()
 runAll src dst = do
   let descDir = src </> "Description/English"
-  runConduitRes $ convertFilesInDir descDir $ mkLitDescPipe dst
-  runConduitRes $ convertFilesInDir src $ mkProductPipe dst
+  runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
+  runConduitRes $ convertFilesIn src $ mkProductPipe dst
 
 -- | Creates a 'ConvertPipeline' for 'LitDesc'
 mkLitDescPipe
@@ -84,18 +80,35 @@ mkProductPipe
   -> ConvertPipeline (YamlDoc, Product) o m
 mkProductPipe d = ConvertPipeline
   { cpParse = pipeEitherDecodedKeep
-  , cpGo = CC.map mkPath .| save .| CC.print
+  , cpGo = CC.map pPath .| handleFullProduct .| save .| CC.map fst .| CC.print
   , cpError = dumpParseException
   }
   where
-    mkPath (content, p) = (d </> productBasename p, content)
-    mkDescPath path =
-      let ext = takeExtension path
-      in addExtension (dropExtension path ++ "-desc") ext
+    pPath (content, p) = (d </> productBasename p, p)
+    fpPath fp = (d </> fullProductBasename fp, encode fp)
+    handleFullProduct = withDumpParseException pipeToFullProduct $ CC.map fpPath
 
-    -- load desc file if present (log if not)
-    -- combine desc
-    -- for now save combined, but eventually save combined transformed
+-- | Determine the path of the descriptor Yaml given the path of the product
+-- Yaml
+toDescPath :: FilePath -> FilePath
+toDescPath f =
+  let ext = takeExtension f
+  in addExtension (dropExtension f ++ "-descs") ext
+
+pipeToFullProduct
+  :: (MonadThrow m, MonadIO m, MonadResource m)
+  => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
+pipeToFullProduct =
+  awaitForever $ \(path, p) -> do
+    let decodePlus (p, content) = FullProduct p <$> decodeEither' content
+        descPath = toDescPath path
+        wasMissing = Left NonScalarKey
+    -- TODO: add real error handling
+    exists <- (liftIO . doesFileExist) descPath
+    if exists then CC.sourceFile (descPath)
+                   .| CC.map ((,) p)
+                   .| CC.map decodePlus
+              else yield wasMissing
 
 -- | Save the content to the indicated path
 --
@@ -113,14 +126,14 @@ save = awaitForever $ \(path, content) -> do
 --
 -- E.g, to process all the product info files in srcDir
 -- @
---   runConduitRes $ convertFilesInDir srcDir dstDir $ mkProductPipe dstDir
+--   runConduitRes $ convertFilesIn srcDir dstDir $ mkProductPipe dstDir
 -- @
-convertFilesInDir
+convertFilesIn
   :: (MonadIO m, MonadResource m)
   => FilePath -- ^ the source directory
   -> ConvertPipeline j o m
   -> ConduitM i o m ()
-convertFilesInDir srcDir pipe =
+convertFilesIn srcDir pipe =
   CF.sourceDirectory srcDir
   .| CC.filterM (liftIO . doesFileExist)
   .| awaitForever go
@@ -138,19 +151,29 @@ convertFilesInDir srcDir pipe =
 convert1File
   :: (MonadIO m, MonadThrow m)
   => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
-  -> ConvertPipeline j o m        -- ^ a pipeline that converts YamlDocs into j
+  -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
   -> ConduitM i o m ()
-convert1File source ConvertPipeline{..} = source .| go
+convert1File source ConvertPipeline{..} =
+  source .| handleEither cpError cpParse cpGo
+
+-- | Generalize handling errors for Conduits that produce Either
+handleEither
+  :: Monad m
+  => ConduitM b1 c m r1
+  -> ConduitM a (Either b1 b2) m ()
+  -> ConduitM b2 c m r2
+  -> ConduitM a c m r2
+handleEither error parser go = go'
   where
-    go = getZipConduit $ ZipConduit goP' <* ZipConduit goE'
-    goE' = cpParse .| CC.concatMap left .| cpError
-    goP' = cpParse .| CC.concatMap right .| cpGo
+    go' = getZipConduit $ ZipConduit goP' <* ZipConduit goE'
+    goE' = parser .| CC.concatMap left .| error
+    goP' = parser .| CC.concatMap right .| go
     left = either Just (const Nothing)
     right = either (const Nothing) Just
 
 -- | ConvertPipeline describes conduits used by convert1File' to
 -- process a specific type of YAML file
-data ConvertPipeline a o m  = ConvertPipeline
+data ConvertPipeline a o m = ConvertPipeline
   { cpParse :: ConduitM FileContents (Either ParseException a) m ()
   , cpGo    :: ConduitM a o m ()
   , cpError :: ConduitM ParseException o m ()
@@ -161,6 +184,13 @@ dumpParseException
   :: (MonadIO m)
   => ConduitM ParseException o m ()
 dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
+
+withDumpParseException
+  :: (MonadThrow m, MonadIO m, MonadResource m)
+  => ConduitM i (Either ParseException a) m ()
+  -> ConduitM a o m r
+  -> ConduitM i o m r
+withDumpParseException = handleEither dumpParseException
 
 -- | Splits the upstream 'FileContents' into a stream of decoded objects
 pipeDecoded
