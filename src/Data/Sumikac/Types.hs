@@ -1,8 +1,9 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns             #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE RecordWildCards            #-}
 module Data.Sumikac.Types
   (
     -- Products
@@ -10,6 +11,7 @@ module Data.Sumikac.Types
   , Product(..)
   , fullProductBasename
   , productBasename
+  , YenAmount
 
     -- Description
   , DescAccum(..)
@@ -41,11 +43,15 @@ import           Data.Text            (Text, replace, unpack)
 import qualified Data.Text            as T
 import qualified Data.Yaml            as Y
 
+import           Data.List            (drop, isPrefixOf)
 import           GHC.Generics
+import           Numeric              (readDec)
 import           System.FilePath
+import           Text.Read            (readEither, readMaybe)
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
+
 
 -- | The basename of the path to store the encoded 'FullProduct'
 fullProductBasename :: FullProduct-> FilePath
@@ -77,16 +83,16 @@ data Product = Product
   , _capacity            :: Maybe Text
   , _categories          :: [Text]
   , _colours             :: Maybe [Text]
-  , _cost                :: Text -- a currency quantity
+  , _cost                :: YenAmount
   , _dimensions          :: Maybe Text
   , _manyDimensions      :: Maybe NamedDimensions
-  , _expectedShippingFee :: Maybe Text -- a currency quantity
+  , _expectedShippingFee :: Maybe YenAmount
   , _madeIn              :: Maybe Text
   , _materials           :: Maybe [Text]
   , _maxItems            :: Maybe Int
   , _originalName        :: Maybe Text
   , _patterns            :: Maybe [Text]
-  , _price               :: Text -- a currency quantity
+  , _price               :: YenAmount
   , _setSizes            :: Maybe [Int]
   , _shape               :: Maybe [Text]
   , _supplier            :: Maybe Text
@@ -315,3 +321,31 @@ drop3Options = defaultOptions
   }
   where
     modifyFields = transformFst toUpper . drop 3
+
+newtype YenAmount = YenAmount
+  { unYenAmount :: Int} deriving (Eq, Ord, Num)
+
+instance Show YenAmount where
+  show = (++ " JPY"). show . unYenAmount
+
+instance Read YenAmount where
+  readsPrec _ s = case (readDec s) of
+    [(x, rest)] | " JPY" `isPrefixOf` rest -> [(YenAmount x, drop 4 rest)]
+    _           -> []
+
+instance ToJSON YenAmount where
+  toJSON = toJSON . show
+  toEncoding = toEncoding . show
+
+readYenAmount :: Text -> Either String YenAmount
+readYenAmount x =
+  case (readEither $ T.unpack x) of
+    Left _  -> Left "Must be an amount followed by ' JPY'"
+    Right x | x < 0 -> Left "Must be a positive Yen amount"
+    x       -> x
+
+instance FromJSON YenAmount where
+  parseJSON = withText "Yen Amount" $ \x -> do
+    case readYenAmount x of
+      Left err  -> fail err
+      Right amt -> return amt
