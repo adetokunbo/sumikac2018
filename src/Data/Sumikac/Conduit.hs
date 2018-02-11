@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
 module Data.Sumikac.Conduit
@@ -56,8 +57,8 @@ runAll
   -> IO ()
 runAll src dst = do
   let descDir = src </> "Description/English"
-  runConduitRes $ convertFilesInDir descDir dst $ mkLitDescPipe dst
-  runConduitRes $ convertFilesInDir src dst $ mkProductPipe dst
+  runConduitRes $ convertFilesInDir descDir $ mkLitDescPipe dst
+  runConduitRes $ convertFilesInDir src $ mkProductPipe dst
 
 -- | Creates a 'ConvertPipeline' for 'LitDesc'
 mkLitDescPipe
@@ -117,17 +118,16 @@ save = awaitForever $ \(path, content) -> do
 convertFilesInDir
   :: (MonadIO m, MonadResource m)
   => FilePath -- ^ the source directory
-  -> FilePath -- ^ the output directory
   -> ConvertPipeline j o m
   -> ConduitM i o m ()
-convertFilesInDir srcDir dstDir pipe =
+convertFilesInDir srcDir pipe =
   CF.sourceDirectory srcDir
   .| CC.filterM (liftIO . doesFileExist)
   .| awaitForever go
   where
     go f = do
       liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
-      convert1File dstDir (CC.sourceFile f) pipe
+      convert1File (CC.sourceFile f) pipe
 
 -- | Processes a target yaml file using a pipeline that places output in dstDir
 --
@@ -137,15 +137,14 @@ convertFilesInDir srcDir dstDir pipe =
 -- @
 convert1File
   :: (MonadIO m, MonadThrow m)
-  => FilePath                     -- ^ the target directory
-  -> ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
+  => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
   -> ConvertPipeline j o m        -- ^ a pipeline that converts YamlDocs into j
   -> ConduitM i o m ()
-convert1File dstDir source pipe = source .| go
+convert1File source ConvertPipeline{..} = source .| go
   where
     go = getZipConduit $ ZipConduit goP' <* ZipConduit goE'
-    goE' = cpParse pipe .| CC.concatMap left .| cpError pipe
-    goP' = cpParse pipe .| CC.concatMap right .| cpGo pipe
+    goE' = cpParse .| CC.concatMap left .| cpError
+    goP' = cpParse .| CC.concatMap right .| cpGo
     left = either Just (const Nothing)
     right = either (const Nothing) Just
 
