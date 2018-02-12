@@ -2,15 +2,23 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-|
+Module      : Client.Drive
+Description : Accesses SumikaCrafts content stored on Google Drive
+Copyright   : (c) Tim Emiola, 2018
+License     : None
+Maintainer  : sam@sumikacrafts.com
+Stability   : experimental
+-}
 
 module Client.Drive
   (
-  -- * Download files and/or folders
+  -- * Download files and/or folders.
   downloadAFile
   , downloadFolder
   , downloadFolderToDir
 
-  -- * List the contents of folders
+  -- * List the contents of folders.
   , listFolder
   , listFolderNames
   , listFolderNamesWithIds
@@ -112,8 +120,8 @@ listFolder name = do
         f <- listToMaybe $ fl ^. flFiles
         return $ f ^. fId
 
-  -- | foldM helper function that traverses folders on Drive to get the driveId
-  -- of the leaf folder
+  -- foldM helper function that traverses folders on Drive to get the driveId of
+  -- the leaf folder
   let getSub Nothing name = do
         md <- send $ flQ .~ (Just $ mkFolderQuery name) $ filesList
         return $ withId md

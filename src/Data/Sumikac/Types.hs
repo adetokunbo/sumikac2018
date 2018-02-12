@@ -4,6 +4,14 @@
 {-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
+{-|
+Module      : Data.Sumikac.Types
+Description : Types that represent components of the SumikaCrafts website.
+Copyright   : (c) Tim Emiola, 2018
+License     : None
+Maintainer  : sam@sumikacrafts.com
+Stability   : experimental
+-}
 module Data.Sumikac.Types
   (
     -- * Product definition
@@ -57,13 +65,13 @@ import           Text.Read            (readEither, readMaybe)
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
 
 
--- | The basename of the path to store the encoded 'FullProduct'
+-- | The basename of the path to store the encoded 'FullProduct'.
 fullProductBasename :: FullProduct-> FilePath
 fullProductBasename =
   mkBasename "-complete.yaml" .  _fdInternalName . _fpFullDesc
 
 -- | FullProduct provies the information about a given product from different
--- sources in a single
+-- sources in a single.
 data FullProduct = FullProduct
   { _fpProduct  :: Product
   , _fpFullDesc :: FullDesc
@@ -76,12 +84,12 @@ instance ToJSON FullProduct where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
--- | The basename of the path to store the encoded 'Product'
+-- | The basename of the path to store the encoded 'Product'.
 productBasename :: Product -> FilePath
 productBasename = mkBasename ".yaml" . _internalName
 
--- A 'Product' is the core item that the sumikacrafts website gives access to
--- the public
+-- | A 'Product' is the core item that the sumikacrafts website gives access to
+-- the public.
 data Product = Product
   { _internalName        :: Text
   , _capacity            :: Maybe Text
@@ -148,7 +156,7 @@ namedDimensionsToJSON = toJSON . HM.fromList . asList
 
 -- | LitDesc models the literal descripion Yaml as two distinct data formats
 --
--- One is a short description, the other a block of text with a label
+-- One is a short description, the other a block of text with a label.
 data LitDesc
   = Block LabelledBlock
   | Short ShortDesc
@@ -167,8 +175,8 @@ instance ToJSON LitDesc where
   toJSON = genericToJSON ldOptions
   toEncoding = genericToEncoding ldOptions
 
--- | Short Descriptions are a minimal description of the product, along with any
--- links that might occur in its paragraphs
+-- | ShortDesc are a minimal description of the product, along with any links
+-- that might occur in its paragraphs.
 data ShortDesc = ShortDesc
   { _sdInternalName :: Text
   , _sdProductName  :: Text
@@ -198,7 +206,7 @@ instance ToJSON LabelledBlock where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
--- | Summarizes the contents of a 'LitDesc'
+-- | Summarize the contents of a 'LitDesc'.
 summarizeLD :: LitDesc -> (FilePath, Text)
 summarizeLD (Block LabelledBlock{..}) = ("Label", _lbLabel)
 summarizeLD (Short ShortDesc{..}) = (fullName, _sdProductName)
@@ -220,18 +228,17 @@ data CommonDesc = CommonDesc
   , cdSections :: Sections     -- ^ the global sections
   }
 
--- | SoloDesc contains description data that is specific to a product
+-- | SoloDesc contains description data that is specific to a product.
 data SoloDesc = SoloDesc (Maybe ShortDesc) Sections
 
 -- | DescAccum contains both the shared description and all the solo product descriptions.
--- DescAccum is used to produce a sequence of
 data DescAccum = DescAccum CommonDesc (Map ProductId SoloDesc)
 
--- | A descAccum with nothing added to it
+-- | A descAccum with nothing added to it.
 descAccum :: DescAccum
 descAccum = DescAccum CommonDesc{cdLinks=Nothing, cdSections=Map.empty} Map.empty
 
--- | Add a 'LitDesc' to a 'DescAccum'
+-- | Add a 'LitDesc' to a 'DescAccum'.
 addLitDesc :: DescAccum -> LitDesc -> DescAccum
 
 addLitDesc (DescAccum cd@CommonDesc {..} solos) (Block LabelledBlock {..}) =
@@ -266,7 +273,7 @@ addLitDesc (DescAccum cd@CommonDesc {..} solos) (Short sd@ShortDesc {..}) =
     addSection Nothing                = Just $ SoloDesc (Just sd) Map.empty
     addSection (Just (SoloDesc _ ss)) = Just $ SoloDesc (Just sd) ss
 
--- | The basename of the path to store the encoded 'FullDesc'
+-- | The basename of the path to store the encoded 'FullDesc'.
 fullDescBasename :: FullDesc -> FilePath
 fullDescBasename = mkBasename "-descs.yaml" .  _fdInternalName
 
@@ -287,6 +294,7 @@ instance ToJSON FullDesc where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
+-- | Unfolds a 'DescAccum' into a list of 'FullDesc'.
 asFullDescs :: DescAccum -> [FullDesc]
 asFullDescs (DescAccum CommonDesc {..} solos) =
   -- drop any productId where there is no ShortDesc; TODO log the dropped productIds
@@ -307,7 +315,7 @@ asFullDescs (DescAccum CommonDesc {..} solos) =
         , _fdOtherSections = filterOthers sections'
         }
 
--- | Transform first letter of 'String' using the function given.
+-- | Transform first letter of 'String' using the given function.
 transformFst :: (Char -> Char) -> String -> String
 transformFst _ []     = []
 transformFst f (x:xs) = (f x):xs
@@ -324,6 +332,9 @@ drop3Options = defaultOptions
   where
     modifyFields = transformFst toUpper . drop 3
 
+-- | YenAmount represents a price or cost in Japanese Yen.
+--
+-- All Sumikacrafts products are priced in Yen
 newtype YenAmount = YenAmount
   { unYenAmount :: Int} deriving (Eq, Ord, Num)
 
@@ -352,7 +363,7 @@ instance FromJSON YenAmount where
       Left err  -> fail err
       Right amt -> return amt
 
--- | Currencies contains the rates of exchange between currencies
+-- | Currencies contains the rates of exchange between currencies.
 data Currencies = Currencies
   {
     _exRates :: Map Text Scientific

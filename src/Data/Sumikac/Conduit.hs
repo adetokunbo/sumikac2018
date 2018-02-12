@@ -1,6 +1,14 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-# LANGUAGE RecordWildCards      #-}
+{-|
+Module      : Data.Sumikac.Conduit
+Description : Conduit-based pipelines that generate the SumikaCrafts website.
+Copyright   : (c) Tim Emiola, 2018
+License     : None
+Maintainer  : sam@sumikacrafts.com
+Stability   : experimental
+-}
 module Data.Sumikac.Conduit
   (
   -- * Yaml Parsing

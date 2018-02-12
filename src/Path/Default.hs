@@ -1,3 +1,11 @@
+{-|
+Module      : Path.Default
+Description : Shared functions for manipulating paths and the filesystem
+Copyright   : (c) Tim Emiola, 2018
+License     : None
+Maintainer  : sam@sumikacrafts.com
+Stability   : experimental
+-}
 module Path.Default
   (
     createDefaultDirIfMissing
@@ -7,7 +15,7 @@ module Path.Default
 where
 
 import           System.Directory (createDirectoryIfMissing, getHomeDirectory)
-import           System.FilePath              ((</>))
+import           System.FilePath  ((</>))
 
 -- | The relative path of the root to the home directory.
 defaultDirRel :: FilePath
