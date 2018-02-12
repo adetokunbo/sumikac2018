@@ -20,6 +20,7 @@ module Data.Sumikac.Conduit
   , pipeEitherDecoded
   , mkProductPipe
   , mkLitDescPipe
+  , runAll
 
   -- * Useful functions
   , groupBySep
@@ -33,14 +34,12 @@ import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as BS
 import           Data.ByteString.Char8        (pack)
 import           Data.Conduit
-import qualified Data.Conduit.Binary          as CB
 import qualified Data.Conduit.Combinators     as CC
 import qualified Data.Conduit.Filesystem      as CF
 import qualified Data.Conduit.List            as CL
 import qualified Data.Conduit.Text            as CT
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
-import qualified Data.Text                    as Text
 import           Data.Yaml                    (ParseException (..), decode,
                                                decodeEither', encode)
 import           System.Directory             (createDirectoryIfMissing,
@@ -74,7 +73,7 @@ convertFilesIn
   -> ConduitM i o m ()
 convertFilesIn srcDir pipe =
   CF.sourceDirectory srcDir
-  .| CC.filterM (liftIO . doesFileExist)
+  .| CC.filterM (liftIO . doesFileExist) -- filter out directories
   .| awaitForever go
   where
     go f = do
@@ -88,7 +87,7 @@ convertFilesIn srcDir pipe =
 --   runConduitRes $ convert1File dstDir source $ mkProductPipe dstDir
 -- @
 convert1File
-  :: (MonadIO m, MonadThrow m)
+  :: (MonadIO m)
   => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
   -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
   -> ConduitM i o m ()
@@ -103,7 +102,7 @@ type YamlDoc = ByteString
 
 -- | Creates a 'ConvertPipeline' for 'LitDesc'
 mkLitDescPipe
-  :: (MonadThrow m, MonadIO m, MonadResource m)
+  :: (MonadThrow m, MonadResource m)
   => FilePath -- ^ the destination directory
   -> ConvertPipeline LitDesc o m
 mkLitDescPipe d = ConvertPipeline
@@ -120,7 +119,7 @@ mkLitDescPipe d = ConvertPipeline
 
 -- | Creates a 'ConvertPipeline' for 'Product'
 mkProductPipe
-  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m, MonadResource m, MonadBaseControl IO m)
   => FilePath -- ^ the destination directory
   -> ConvertPipeline (YamlDoc, Product) o m
 mkProductPipe d = ConvertPipeline
@@ -129,7 +128,7 @@ mkProductPipe d = ConvertPipeline
   , cpError = dumpParseException
   }
   where
-    pPath (content, p) = (d </> productBasename p, p)
+    pPath (_, p) = (d </> productBasename p, p)
     fpPath fp = (d </> fullProductBasename fp, encode fp)
     handleFullProduct = withDumpParseException pipeToFullProduct $ CC.map fpPath
 
@@ -141,12 +140,12 @@ toDescPath f =
   in addExtension (dropExtension f ++ "-descs") ext
 
 pipeToFullProduct
-  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m, MonadResource m, MonadBaseControl IO m)
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
     let descPath = toDescPath path
-        decodePlus (p, content) = FullProduct p <$> decodeEither' content
+        decodePlus (prod, content) = FullProduct prod <$> decodeEither' content
         handleNotFound e = yield $ Left $ OtherParseException e
 
     (CC.sourceFile (descPath)
@@ -158,7 +157,7 @@ pipeToFullProduct =
 -- This is not sink - the inputs are yielded so that further downstream
 -- processing is allowed
 save
-  :: (Monad m, MonadResource m)
+  :: (MonadResource m)
   => ConduitM (FilePath, FileContents) (FilePath, FileContents) m ()
 save = awaitForever $ \(path, content) -> do
   liftIO $ createDirectoryIfMissing True $ takeDirectory path
@@ -172,11 +171,11 @@ handleEither
   -> ConduitM a (Either b1 b2) m ()
   -> ConduitM b2 c m r2
   -> ConduitM a c m r2
-handleEither error parser go = go'
+handleEither onExc parser onOK = go'
   where
     go' = getZipConduit $ ZipConduit goP' <* ZipConduit goE'
-    goE' = parser .| CC.concatMap left .| error
-    goP' = parser .| CC.concatMap right .| go
+    goE' = parser .| CC.concatMap left .| onExc
+    goP' = parser .| CC.concatMap right .| onOK
     left = either Just (const Nothing)
     right = either (const Nothing) Just
 
@@ -195,7 +194,7 @@ dumpParseException
 dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
 
 withDumpParseException
-  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m, MonadResource m)
   => ConduitM i (Either ParseException a) m ()
   -> ConduitM a o m r
   -> ConduitM i o m r
@@ -203,14 +202,14 @@ withDumpParseException = handleEither dumpParseException
 
 -- | Splits the upstream 'FileContents' into a stream of decoded objects
 pipeDecoded
-  :: (Monad m, MonadThrow m, FromJSON a)
+  :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Maybe a) m ()
 pipeDecoded = pipeYamlDocs .| CC.map decode
 
 -- | Creates a stream of decoded Yaml objects wrapped in 'Either' 'ParseException'
 -- to allow for exception handling
 pipeEitherDecoded
-  :: (Monad m, MonadThrow m, FromJSON a)
+  :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Either ParseException a) m ()
 pipeEitherDecoded = pipeYamlDocs .| CC.map decodeEither'
 
@@ -218,7 +217,7 @@ pipeEitherDecoded = pipeYamlDocs .| CC.map decodeEither'
 -- parsed from. These are wrapped in 'Either' 'ParseException' to allow for
 -- exception handling
 pipeEitherDecodedKeep
-  :: (Monad m, MonadThrow m, FromJSON a)
+  :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Either ParseException (YamlDoc, a)) m ()
 pipeEitherDecodedKeep = pipeYamlDocs .| CC.map decodeAndKeep
   where
@@ -226,7 +225,7 @@ pipeEitherDecodedKeep = pipeYamlDocs .| CC.map decodeAndKeep
 
 -- | Creates a stream of 'YamlDoc' from the  upstream 'FileContents'
 pipeYamlDocs
-  :: (Monad m, MonadThrow m)
+  :: (MonadThrow m)
   => ConduitM FileContents YamlDoc m ()
 pipeYamlDocs =
   CT.decode CT.utf8
@@ -252,7 +251,7 @@ groupBySep p = yieldFromJust (CT.foldLines groupBySep' Nothing)
         Nothing -> do
           yield $ maybe "" id acc
           return acc'
-        otherwise -> return acc'
+        x -> return x
 
 yieldFromJust
   :: Monad m
