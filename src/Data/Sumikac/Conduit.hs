@@ -1,6 +1,6 @@
+{-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE RecordWildCards      #-}
 {-|
 Module      : Data.Sumikac.Conduit
 Description : Conduit-based pipelines that generate the SumikaCrafts website.
@@ -90,7 +90,7 @@ convert1File
   => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
   -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
   -> ConduitM i o m ()
-convert1File source ConvertPipeline{..} =
+convert1File source ConvertPipeline{cpParse, cpGo, cpError} =
   source .| handleEither cpError cpParse cpGo
 
 -- FileContents are the entire contents for reading a file
