@@ -34,7 +34,6 @@ module Data.Sumikac.Types
   , asFullDescs
   , descAccum
   , fullDescBasename
-  , summarizeLD
   )
 where
 
@@ -205,14 +204,6 @@ instance FromJSON LabelledBlock where
 instance ToJSON LabelledBlock where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
-
--- | Summarize the contents of a 'LitDesc'.
-summarizeLD :: LitDesc -> (FilePath, Text)
-summarizeLD (Block LabelledBlock{..}) = ("Label", _lbLabel)
-summarizeLD (Short ShortDesc{..}) = (fullName, _sdProductName)
-  where
-    fullName = (unpack . normalize) _sdInternalName
-    normalize = (<> ".yaml") . replace "/" "-"
 
 -- The Label names and ProductIds are both 'Text' values
 type Label = Text
