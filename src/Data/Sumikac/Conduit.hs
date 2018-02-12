@@ -27,7 +27,7 @@ module Data.Sumikac.Conduit
   )
 where
 
-import           Control.Monad.IO.Class
+import Control.Monad.Reader
 import           Control.Monad.Trans.Resource
 import           Data.Aeson                   (FromJSON (..))
 import           Data.ByteString              (ByteString)
@@ -48,6 +48,12 @@ import           System.FilePath
 
 import           Data.Sumikac.Types
 
+-- Env is an environment available to all processing pipelines.
+--
+-- Initially it just contains the currencies.
+data Env = Env
+  {envCurrencies :: Currencies
+  }
 
 -- | Run the pipes that regenerate the site.
 runAll
@@ -57,8 +63,9 @@ runAll
   -> m ()
 runAll src dst = do
   let descDir = src </> "Description/English"
+  let env = Env noCurrencies
   runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-  runConduitRes $ convertFilesIn src $ mkProductPipe dst
+  runReaderT (runConduitRes $ convertFilesIn src $ mkProductPipe dst) env
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --
@@ -119,7 +126,7 @@ mkLitDescPipe d = ConvertPipeline
 
 -- | Creates a 'ConvertPipeline' for 'Product'.
 mkProductPipe
-  :: (MonadThrow m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m, MonadReader Env m, MonadResource m, MonadBaseControl IO m)
   => FilePath -- ^ the destination directory
   -> ConvertPipeline (YamlDoc, Product) o m
 mkProductPipe d = ConvertPipeline
@@ -139,14 +146,15 @@ toDescPath f =
   in addExtension (dropExtension f ++ "-descs") ext
 
 pipeToFullProduct
-  :: (MonadThrow m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m, MonadReader Env m, MonadResource m, MonadBaseControl IO m)
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
     let descPath = toDescPath path
         decodePlus (prod, content) = FullProduct prod <$> decodeEither' content
         handleNotFound e = yield $ Left $ OtherParseException e
-
+    env <- ask
+    liftIO $ print $ envCurrencies env
     (CC.sourceFile (descPath)
       .| CC.map ((,) p)
       .| CC.map decodePlus) `catchC` handleNotFound

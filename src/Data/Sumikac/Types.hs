@@ -22,6 +22,7 @@ module Data.Sumikac.Types
     -- * Product components
   , YenAmount
   , Currencies
+  , noCurrencies
 
     -- * Product description
   , DescAccum(..)
@@ -354,6 +355,10 @@ data Currencies = Currencies
   {
     _exRates :: Map Text Scientific
   } deriving (Show, Generic)
+
+
+noCurrencies :: Currencies
+noCurrencies = Currencies Map.empty
 
 currenciesOptions :: Options
 currenciesOptions = defaultOptions
