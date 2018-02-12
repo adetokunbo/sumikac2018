@@ -49,7 +49,7 @@ import           System.FilePath
 import           Data.Sumikac.Types
 
 
--- | Run the pipes that regenerate the site
+-- | Run the pipes that regenerate the site.
 runAll
   :: (MonadIO m, MonadThrow m, MonadBaseControl IO m)
   => FilePath -- ^ the source directory when the files are download to
@@ -60,7 +60,7 @@ runAll src dst = do
   runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
   runConduitRes $ convertFilesIn src $ mkProductPipe dst
 
--- | Process the target YAML files in a srcDir into outputs in dstDir
+-- | Process the target YAML files in a srcDir into outputs in dstDir.
 --
 -- E.g, to process all the product info files in srcDir
 -- @
@@ -80,7 +80,7 @@ convertFilesIn srcDir pipe =
       liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
       convert1File (CC.sourceFile f) pipe
 
--- | Processes a target yaml file using a pipeline that places output in dstDir
+-- | Processes a target yaml file using a pipeline that places output in dstDir.
 --
 -- E.g, to process a single file product file
 -- @
@@ -100,7 +100,7 @@ type FileContents = ByteString
 -- YamlDoc is a Yaml Document; there may be several of these in a file
 type YamlDoc = ByteString
 
--- | Creates a 'ConvertPipeline' for 'LitDesc'
+-- | Creates a 'ConvertPipeline' for 'LitDesc'.
 mkLitDescPipe
   :: (MonadThrow m, MonadResource m)
   => FilePath -- ^ the destination directory
@@ -117,7 +117,7 @@ mkLitDescPipe d = ConvertPipeline
 
     pathOutput fd = (d </> fullDescBasename fd, encode fd)
 
--- | Creates a 'ConvertPipeline' for 'Product'
+-- | Creates a 'ConvertPipeline' for 'Product'.
 mkProductPipe
   :: (MonadThrow m, MonadResource m, MonadBaseControl IO m)
   => FilePath -- ^ the destination directory
@@ -132,8 +132,7 @@ mkProductPipe d = ConvertPipeline
     fpPath fp = (d </> fullProductBasename fp, encode fp)
     handleFullProduct = withDumpParseException pipeToFullProduct $ CC.map fpPath
 
--- | Determine the path of the descriptor Yaml given the path of the product
--- Yaml
+-- | Derive the path of the descriptor Yaml from that of the product Yaml.
 toDescPath :: FilePath -> FilePath
 toDescPath f =
   let ext = takeExtension f
@@ -152,10 +151,10 @@ pipeToFullProduct =
       .| CC.map ((,) p)
       .| CC.map decodePlus) `catchC` handleNotFound
 
--- | Save the content to the indicated path
+-- | Save the content to the indicated path.
 --
 -- This is not sink - the inputs are yielded so that further downstream
--- processing is allowed
+-- processing is allowed.
 save
   :: (MonadResource m)
   => ConduitM (FilePath, FileContents) (FilePath, FileContents) m ()
@@ -164,7 +163,7 @@ save = awaitForever $ \(path, content) -> do
   yield content .| CC.sinkFile path
   yield (path, content)
 
--- | Generalize handling errors for Conduits that produce Either
+-- | Generalize handling errors for Conduits that produce Either.
 handleEither
   :: Monad m
   => ConduitM b1 c m r1
@@ -179,15 +178,15 @@ handleEither onExc parser onOK = go'
     left = either Just (const Nothing)
     right = either (const Nothing) Just
 
--- | ConvertPipeline describes conduits used by convert1File' to
--- process a specific type of YAML file
+-- | ConvertPipeline configures the conduits used by convert1File' to process a
+-- specific type of YAML file.
 data ConvertPipeline a o m = ConvertPipeline
   { cpParse :: ConduitM FileContents (Either ParseException a) m ()
   , cpGo    :: ConduitM a o m ()
   , cpError :: ConduitM ParseException o m ()
   }
 
--- | Writes the 'ParseException' to stderr
+-- | Writes the 'ParseException' to stderr.
 dumpParseException
   :: (MonadIO m)
   => ConduitM ParseException o m ()
@@ -200,14 +199,14 @@ withDumpParseException
   -> ConduitM i o m r
 withDumpParseException = handleEither dumpParseException
 
--- | Splits the upstream 'FileContents' into a stream of decoded objects
+-- | Splits the upstream 'FileContents' into a stream of decoded objects.
 pipeDecoded
   :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Maybe a) m ()
 pipeDecoded = pipeYamlDocs .| CC.map decode
 
 -- | Creates a stream of decoded Yaml objects wrapped in 'Either' 'ParseException'
--- to allow for exception handling
+-- to allow for exception handling.
 pipeEitherDecoded
   :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Either ParseException a) m ()
@@ -215,7 +214,7 @@ pipeEitherDecoded = pipeYamlDocs .| CC.map decodeEither'
 
 -- | Creates a stream of decoded Yaml objects along with the 'YamlDoc' they were
 -- parsed from. These are wrapped in 'Either' 'ParseException' to allow for
--- exception handling
+-- exception handling.
 pipeEitherDecodedKeep
   :: (MonadThrow m, FromJSON a)
   => ConduitM FileContents (Either ParseException (YamlDoc, a)) m ()
@@ -223,7 +222,7 @@ pipeEitherDecodedKeep = pipeYamlDocs .| CC.map decodeAndKeep
   where
     decodeAndKeep x = ((,) x) <$> decodeEither' x
 
--- | Creates a stream of 'YamlDoc' from the  upstream 'FileContents'
+-- | Creates a stream of 'YamlDoc' from the  upstream 'FileContents'.
 pipeYamlDocs
   :: (MonadThrow m)
   => ConduitM FileContents YamlDoc m ()
@@ -236,7 +235,7 @@ pipeYamlDocs =
     byDashes = groupBySep $ \x -> x == "---"
 
 -- | Splits the upstream 'Text' into chunks bounded by separator lines that
--- match the predicate
+-- match the predicate.
 groupBySep :: Monad m => (Text -> Bool) -> ConduitM Text Text m ()
 groupBySep p = yieldFromJust (CT.foldLines groupBySep' Nothing)
   where
