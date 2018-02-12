@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
@@ -51,9 +52,10 @@ import           Data.Sumikac.Types
 
 -- | Run the pipes that regenerate the site
 runAll
-  :: FilePath -- ^ the source directory when the files are download to
+  :: (MonadIO m, MonadThrow m, MonadBaseControl IO m)
+  => FilePath -- ^ the source directory when the files are download to
   -> FilePath -- ^ the destination directory to where the files are saved
-  -> IO ()
+  -> m ()
 runAll src dst = do
   let descDir = src </> "Description/English"
   runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
@@ -118,7 +120,7 @@ mkLitDescPipe d = ConvertPipeline
 
 -- | Creates a 'ConvertPipeline' for 'Product'
 mkProductPipe
-  :: (MonadThrow m, MonadIO m, MonadResource m)
+  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
   => FilePath -- ^ the destination directory
   -> ConvertPipeline (YamlDoc, Product) o m
 mkProductPipe d = ConvertPipeline
@@ -139,19 +141,17 @@ toDescPath f =
   in addExtension (dropExtension f ++ "-descs") ext
 
 pipeToFullProduct
-  :: (MonadThrow m, MonadIO m, MonadResource m)
+  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
-    let decodePlus (p, content) = FullProduct p <$> decodeEither' content
-        descPath = toDescPath path
-        wasMissing = Left NonScalarKey
-    -- TODO: add real error handling
-    exists <- (liftIO . doesFileExist) descPath
-    if exists then CC.sourceFile (descPath)
-                   .| CC.map ((,) p)
-                   .| CC.map decodePlus
-              else yield wasMissing
+    let descPath = toDescPath path
+        decodePlus (p, content) = FullProduct p <$> decodeEither' content
+        handleNotFound e = yield $ Left $ OtherParseException e
+
+    (CC.sourceFile (descPath)
+      .| CC.map ((,) p)
+      .| CC.map decodePlus) `catchC` handleNotFound
 
 -- | Save the content to the indicated path
 --
@@ -195,7 +195,7 @@ dumpParseException
 dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
 
 withDumpParseException
-  :: (MonadThrow m, MonadIO m, MonadResource m)
+  :: (MonadThrow m, MonadIO m, MonadResource m, MonadBaseControl IO m)
   => ConduitM i (Either ParseException a) m ()
   -> ConduitM a o m r
   -> ConduitM i o m r
