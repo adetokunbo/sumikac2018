@@ -6,14 +6,17 @@
 {-# LANGUAGE RecordWildCards            #-}
 module Data.Sumikac.Types
   (
-    -- Products
+    -- * Product definition
     FullProduct(..)
   , Product(..)
   , fullProductBasename
   , productBasename
-  , YenAmount
 
-    -- Description
+    -- * Product components
+  , YenAmount
+  , Currencies
+
+    -- * Product description
   , DescAccum(..)
   , FullDesc(..)
   , LitDesc(..)
@@ -32,13 +35,14 @@ import           Data.Aeson
 import           Data.Aeson.Types
 import           Data.ByteString      (ByteString)
 import           Data.ByteString.Lazy (toStrict)
-import           Data.Char            (toUpper)
+import           Data.Char            (toUpper, toLower)
 import           Data.Foldable        (foldl')
 import qualified Data.HashMap.Strict  as HM
 import           Data.Map.Strict      (Map)
 import qualified Data.Map.Strict      as Map
 import           Data.Maybe
 import           Data.Monoid          ((<>))
+import           Data.Scientific      (Scientific)
 import           Data.Text            (Text, replace, unpack)
 import qualified Data.Text            as T
 import qualified Data.Yaml            as Y
@@ -102,11 +106,9 @@ data Product = Product
 
 productOptions :: Options
 productOptions = defaultOptions
-  { fieldLabelModifier = modifyFields
+  { fieldLabelModifier = transformFst toUpper . drop 1
   , omitNothingFields = True
   }
-  where
-    modifyFields = transformFst toUpper . drop 1
 
 instance FromJSON Product where
   parseJSON = genericParseJSON productOptions
@@ -349,3 +351,22 @@ instance FromJSON YenAmount where
     case readYenAmount x of
       Left err  -> fail err
       Right amt -> return amt
+
+-- | Currencies contains the rates of exchange between currencies
+data Currencies = Currencies
+  {
+    _exRates :: Map Text Scientific
+  } deriving (Show, Generic)
+
+currenciesOptions :: Options
+currenciesOptions = defaultOptions
+  { fieldLabelModifier = transformFst toLower . drop 3
+  , omitNothingFields = True
+  }
+
+instance FromJSON Currencies where
+  parseJSON = genericParseJSON currenciesOptions
+
+instance ToJSON Currencies where
+  toJSON = genericToJSON currenciesOptions
+  toEncoding = genericToEncoding currenciesOptions
