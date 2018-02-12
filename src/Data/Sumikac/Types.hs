@@ -39,8 +39,6 @@ where
 import           Control.Applicative
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Data.ByteString      (ByteString)
-import           Data.ByteString.Lazy (toStrict)
 import           Data.Char            (toUpper, toLower)
 import           Data.Foldable        (foldl')
 import qualified Data.HashMap.Strict  as HM
@@ -51,13 +49,11 @@ import           Data.Monoid          ((<>))
 import           Data.Scientific      (Scientific)
 import           Data.Text            (Text, replace, unpack)
 import qualified Data.Text            as T
-import qualified Data.Yaml            as Y
 
 import           Data.List            (drop, isPrefixOf)
 import           GHC.Generics
 import           Numeric              (readDec)
-import           System.FilePath
-import           Text.Read            (readEither, readMaybe)
+import           Text.Read            (readEither)
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
@@ -292,7 +288,7 @@ asFullDescs (DescAccum CommonDesc {..} solos) =
   where
     convert (SoloDesc Nothing _) = Nothing
     convert (SoloDesc (Just ShortDesc {..}) sections) =
-      let sections' = Map.unionWith (\x y -> x) sections cdSections
+      let sections' = Map.unionWith (\x _ -> x) sections cdSections
           filterOthers = Map.filterWithKey others
           others k _ = k /= "Description" && k /= "Overview"
       in
@@ -344,8 +340,8 @@ readYenAmount :: Text -> Either String YenAmount
 readYenAmount x =
   case (readEither $ T.unpack x) of
     Left _  -> Left "Must be an amount followed by ' JPY'"
-    Right x | x < 0 -> Left "Must be a positive Yen amount"
-    x       -> x
+    Right y | y < 0 -> Left "Must be a positive Yen amount"
+    z       -> z
 
 instance FromJSON YenAmount where
   parseJSON = withText "Yen Amount" $ \x -> do

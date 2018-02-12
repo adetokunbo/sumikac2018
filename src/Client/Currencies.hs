@@ -19,7 +19,6 @@ where
 import Network.HTTP.Simple
 import System.FilePath
 import System.Directory
-import System.IO
 import Data.ByteString as BS
 
 import Data.Sumikac.Types
