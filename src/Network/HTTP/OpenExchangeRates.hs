@@ -18,7 +18,9 @@ where
 
 import           Data.ByteString     as BS
 import           Data.Yaml           (encode)
+
 import           Network.HTTP.Simple
+
 import           System.Directory
 import           System.FilePath
 

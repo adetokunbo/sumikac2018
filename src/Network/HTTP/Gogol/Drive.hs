@@ -1,7 +1,7 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
+{-# LANGUAGE GADTs                #-}
 {-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-|
 Module      : Network.HTTP.Gogol.Drive
 Description : Accesses SumikaCrafts content stored on Google Drive
@@ -26,22 +26,22 @@ module Network.HTTP.Gogol.Drive
 
 where
 ---------------------------------------------------------------------------------
+import           Control.Monad                (foldM, forM_)
+import           Control.Monad.Trans.Resource (liftResourceT, runResourceT)
+import           Data.Maybe                   (catMaybes, listToMaybe)
+import           Data.Text                    (Text, replace, split, unpack)
+import           System.Directory             (createDirectoryIfMissing)
+import           System.FilePath              ((</>))
+import           System.IO                    (stdout)
+
+import           Control.Lens                 ((.~), (<&>), (^.))
+import           Formatting                   (Format, sformat, (%))
+import           Formatting.Formatters        (stext)
 import           Network.Google
 import           Network.Google.Drive
 
 import           Conduit
-import           Control.Lens                 ((.~), (<&>), (^.))
-import           Control.Monad                (forM_, foldM)
-import           Control.Monad.Trans.Resource (liftResourceT, runResourceT)
 import           Data.Conduit                 (($$+-))
-import           Data.Maybe                   (catMaybes, listToMaybe)
-import           Data.Text                    (Text, replace, unpack, split)
-import           Formatting                   (Format, sformat, (%))
-import           Formatting.Formatters        (stext)
-
-import           System.Directory             (createDirectoryIfMissing)
-import           System.FilePath              ((</>))
-import           System.IO                    (stdout)
 
 import           Path.Default                 (createDefaultDirIfMissing)
 

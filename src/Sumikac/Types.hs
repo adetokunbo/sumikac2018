@@ -42,24 +42,28 @@ where
 
 import           Control.Applicative
 import qualified Control.Exception   as Exc
-import           Data.Aeson
-import           Data.Aeson.Types
+
 import           Data.Char           (toLower, toUpper)
 import           Data.Foldable       (foldl')
 import qualified Data.HashMap.Strict as HM
+import           Data.List           (drop, isPrefixOf)
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           Data.Maybe
 import           Data.Monoid         ((<>))
-import           Data.Scientific     as Sci
-import           Data.Text           (Text, replace, unpack)
+import           Data.Text           (Text)
 import qualified Data.Text           as T
-import           Data.Yaml           (ParseException (..))
-
-import           Data.List           (drop, isPrefixOf)
-import           GHC.Generics
 import           Numeric             (readDec)
 import           Text.Read           (readEither)
+
+
+import           Data.Aeson
+import           Data.Aeson.Types
+import           Data.Scientific     as Sci
+import           Data.Yaml           (ParseException (..))
+
+import           GHC.Generics
+
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
@@ -73,9 +77,9 @@ fullProductBasename =
 -- | FullProduct provies the information about a given product from different
 -- sources in a single.
 data FullProduct = FullProduct
-  { _fpProduct  :: Product
+  { _fpProduct   :: Product
   , _fpAllPrices :: Map Text Scientific
-  , _fpFullDesc :: FullDesc
+  , _fpFullDesc  :: FullDesc
   } deriving (Show, Generic)
 
 -- | Smart constructor for creating a full product
@@ -319,7 +323,7 @@ transformFst f (x:xs) = (f x):xs
 
 -- | Make files basename given its extension
 mkBasename :: Text -> Text -> FilePath
-mkBasename ext = unpack . (<> ext) . replace "/" "-"
+mkBasename ext = T.unpack . (<> ext) . T.replace "/" "-"
 
 drop3Options :: Options
 drop3Options = defaultOptions

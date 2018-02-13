@@ -1,7 +1,8 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE ExtendedDefaultRules #-}
-{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ExtendedDefaultRules  #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE NamedFieldPuns        #-}
+{-# LANGUAGE OverloadedStrings     #-}
 {-|
 Module      : Sumikac.Conduit
 Description : Conduit-based pipelines that generate the SumikaCrafts website.
@@ -29,22 +30,25 @@ where
 
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Resource
-import           Data.Aeson                   (FromJSON (..))
+
 import           Data.ByteString              (ByteString)
-import qualified Data.ByteString              as BS
-import           Data.ByteString.Char8        (pack)
+import qualified Data.ByteString.Char8        as BS
+import           Data.Map.Strict              (Map)
+import           Data.Monoid                  ((<>))
+import           Data.Text                    (Text)
+
+import           Data.Aeson                   (FromJSON (..))
+import           Data.Yaml                    (ParseException (..), decode,
+                                               decodeEither', decodeFileEither,
+                                               encode)
+
 import           Data.Conduit
 import qualified Data.Conduit.Combinators     as CC
 import qualified Data.Conduit.Filesystem      as CF
 import qualified Data.Conduit.List            as CL
 import qualified Data.Conduit.Text            as CT
-import           Data.Monoid                  ((<>))
-import           Data.Text                    (Text)
-import           Data.Map.Strict      (Map)
-import           Data.Yaml                    (decodeFileEither, ParseException (..), decode,
-                                               decodeEither', encode)
-import           System.Directory             (createDirectoryIfMissing,
-                                               doesFileExist)
+
+import           System.Directory
 import           System.FilePath
 
 import           Sumikac.Types
@@ -218,7 +222,7 @@ data ConvertPipeline a o m = ConvertPipeline
 dumpParseException
   :: (MonadIO m)
   => ConduitM ParseException o m ()
-dumpParseException = CC.map show .| CC.unlines .| CC.map pack .| CC.stderr
+dumpParseException = CC.map show .| CC.unlines .| CC.map BS.pack .| CC.stderr
 
 withDumpParseException
   :: (MonadThrow m, MonadResource m)
