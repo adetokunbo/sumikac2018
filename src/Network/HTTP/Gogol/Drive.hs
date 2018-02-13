@@ -3,7 +3,7 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-|
-Module      : Client.Drive
+Module      : Network.HTTP.Gogol.Drive
 Description : Accesses SumikaCrafts content stored on Google Drive
 Copyright   : (c) Tim Emiola, 2018
 License     : None
@@ -11,7 +11,7 @@ Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
 
-module Client.Drive
+module Network.HTTP.Gogol.Drive
   (
   -- * Download files and/or folders.
   downloadAFile
@@ -39,11 +39,11 @@ import           Data.Text                    (Text, replace, unpack, split)
 import           Formatting                   (Format, sformat, (%))
 import           Formatting.Formatters        (stext)
 
-import           Path.Default                 (createDefaultDirIfMissing)
-
 import           System.Directory             (createDirectoryIfMissing)
 import           System.FilePath              ((</>))
 import           System.IO                    (stdout)
+
+import           Path.Default                 (createDefaultDirIfMissing)
 
 
 -- | Format for a query that searches for folders

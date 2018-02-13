@@ -32,11 +32,11 @@ library
                        -Wincomplete-uni-patterns
                        -Wredundant-constraints
 
-  exposed-modules:     Client.Drive
-                     , Client.OpenExchangeRates
-                     , Data.Sumikac.Conduit
-                     , Data.Sumikac.Types
+  exposed-modules:     Network.HTTP.Gogol.Drive
+                     , Network.HTTP.OpenExchangeRates
                      , Path.Default
+                     , Sumikac.Conduit
+                     , Sumikac.Types
 
   build-depends:       aeson         >= 1.2.3
                      , attoparsec    >= 0.13 && < 0.14

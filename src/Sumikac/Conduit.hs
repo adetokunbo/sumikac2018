@@ -3,14 +3,14 @@
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings    #-}
 {-|
-Module      : Data.Sumikac.Conduit
+Module      : Sumikac.Conduit
 Description : Conduit-based pipelines that generate the SumikaCrafts website.
 Copyright   : (c) Tim Emiola, 2018
 License     : None
 Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
-module Data.Sumikac.Conduit
+module Sumikac.Conduit
   (
   -- * Yaml Parsing
     ConvertPipeline(..)
@@ -47,7 +47,7 @@ import           System.Directory             (createDirectoryIfMissing,
                                                doesFileExist)
 import           System.FilePath
 
-import           Data.Sumikac.Types
+import           Sumikac.Types
 
 -- Env is an environment available to all processing pipelines.
 --

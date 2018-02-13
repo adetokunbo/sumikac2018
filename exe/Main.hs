@@ -1,6 +1,6 @@
 module Main where
 
-import Data.Sumikac.Conduit
+import Sumikac.Conduit
 
 main :: IO ()
 main = do

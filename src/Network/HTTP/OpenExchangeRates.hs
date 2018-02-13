@@ -1,28 +1,29 @@
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-|
 
-Module      : Client.OpenExchangeRates
+Module      : Network.HTTP.OpenExchangeRates
 Description : Accesses OpenExchangeRates.org to obtain currency exchange rates.
 Copyright   : (c) Tim Emiola, 2018
 License     : None
 Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
-module Client.OpenExchangeRates
+module Network.HTTP.OpenExchangeRates
   (
     download
   )
 
 where
 
-import Network.HTTP.Simple
-import System.FilePath
-import System.Directory
-import Data.ByteString as BS
+import           Data.ByteString     as BS
+import           Data.Yaml           (encode)
+import           Network.HTTP.Simple
+import           System.Directory
+import           System.FilePath
 
-import Data.Sumikac.Types
-import Data.Yaml (encode)
+import           Sumikac.Types
+
 
 -- TODO: move apiId and URI to a config package
 apiId :: String
@@ -31,7 +32,7 @@ apiId = "13eacae0bb8b41419d00037883e3cb29"
 apiURI :: String
 apiURI = "http://openexchangerates.org/api/latest.json?app_id=" ++ apiId
 
--- | download request the exchange rates and writes them to a path.
+-- | download the latest exchange rates and write them to a path.
 download :: FilePath -> IO ()
 download path = do
   createDirectoryIfMissing True $ takeDirectory path

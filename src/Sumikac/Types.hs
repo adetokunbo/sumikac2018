@@ -5,14 +5,14 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-|
-Module      : Data.Sumikac.Types
+Module      : Sumikac.Types
 Description : Types that represent components of the SumikaCrafts website.
 Copyright   : (c) Tim Emiola, 2018
 License     : None
 Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
-module Data.Sumikac.Types
+module Sumikac.Types
   (
     -- * Product definition
     FullProduct(..)
