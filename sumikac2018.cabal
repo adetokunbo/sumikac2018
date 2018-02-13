@@ -32,8 +32,8 @@ library
                        -Wincomplete-uni-patterns
                        -Wredundant-constraints
 
-  exposed-modules:     Client.Currencies
-                     , Client.Drive
+  exposed-modules:     Client.Drive
+                     , Client.OpenExchangeRates
                      , Data.Sumikac.Conduit
                      , Data.Sumikac.Types
                      , Path.Default

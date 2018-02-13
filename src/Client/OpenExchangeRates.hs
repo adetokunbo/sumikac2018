@@ -2,14 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-|
 
-Module      : Client.Currencies
+Module      : Client.OpenExchangeRates
 Description : Accesses OpenExchangeRates.org to obtain currency exchange rates.
 Copyright   : (c) Tim Emiola, 2018
 License     : None
 Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
-module Client.Currencies
+module Client.OpenExchangeRates
   (
     download
   )
