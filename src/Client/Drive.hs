@@ -41,8 +41,7 @@ import           Formatting.Formatters        (stext)
 
 import           Path.Default                 (createDefaultDirIfMissing)
 
-import           System.Directory             (createDirectoryIfMissing,
-                                               getHomeDirectory)
+import           System.Directory             (createDirectoryIfMissing)
 import           System.FilePath              ((</>))
 import           System.IO                    (stdout)
 
@@ -122,12 +121,12 @@ listFolder name = do
 
   -- foldM helper function that traverses folders on Drive to get the driveId of
   -- the leaf folder
-  let getSub Nothing name = do
-        md <- send $ flQ .~ (Just $ mkFolderQuery name) $ filesList
+  let getSub Nothing sub = do
+        md <- send $ flQ .~ (Just $ mkFolderQuery sub) $ filesList
         return $ withId md
       getSub (Just Nothing) _ = return $ Just Nothing
-      getSub (Just (Just theId)) name = do
-        md <- send $ flQ .~ (Just $ mkSubQuery name theId) $ filesList
+      getSub (Just (Just theId)) sub = do
+        md <- send $ flQ .~ (Just $ mkSubQuery sub theId) $ filesList
         return $ withId md
 
   lgr <- newLogger Debug stdout
