@@ -27,7 +27,7 @@ module Data.Sumikac.Conduit
   )
 where
 
-import Control.Monad.Reader
+import           Control.Monad.Reader
 import           Control.Monad.Trans.Resource
 import           Data.Aeson                   (FromJSON (..))
 import           Data.ByteString              (ByteString)
@@ -40,7 +40,8 @@ import qualified Data.Conduit.List            as CL
 import qualified Data.Conduit.Text            as CT
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
-import           Data.Yaml                    (ParseException (..), decode,
+import           Data.Map.Strict      (Map)
+import           Data.Yaml                    (decodeFileEither, ParseException (..), decode,
                                                decodeEither', encode)
 import           System.Directory             (createDirectoryIfMissing,
                                                doesFileExist)
@@ -52,8 +53,22 @@ import           Data.Sumikac.Types
 --
 -- Initially it just contains the currencies.
 data Env = Env
-  {envCurrencies :: Currencies
+  {envFromJPY :: Map Text Double
   }
+
+defaultCurrencies :: [Text]
+defaultCurrencies = ["JPY", "USD", "GBP", "EUR"]
+
+loadFromJPYRates
+  :: (MonadIO m)
+  => FilePath
+  -> m (Either ParseException (Map Text Double))
+loadFromJPYRates src = liftIO $ do
+    let currencyFile = src </> "latest_rates.yaml"
+    fromUSD <- decodeFileEither currencyFile
+    return $ do
+      fromUSD' <- fromUSD
+      mkYenRates fromUSD' defaultCurrencies
 
 -- | Run the pipes that regenerate the site.
 runAll
@@ -62,10 +77,16 @@ runAll
   -> FilePath -- ^ the destination directory to where the files are saved
   -> m ()
 runAll src dst = do
-  let descDir = src </> "Description/English"
-  let env = Env noCurrencies
-  runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-  runReaderT (runConduitRes $ convertFilesIn src $ mkProductPipe dst) env
+  let prodDir = src </> "Products"
+      descDir = prodDir </> "Description/English"
+
+  fromJPY <- loadFromJPYRates src
+  case fromJPY of
+    Left e -> throwM e -- could not load the currencies file, fail
+    Right fromJPY' -> do
+      let env = Env fromJPY'
+      runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
+      runReaderT (runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst) env
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --
@@ -153,8 +174,8 @@ pipeToFullProduct =
     let descPath = toDescPath path
         decodePlus (prod, content) = FullProduct prod <$> decodeEither' content
         handleNotFound e = yield $ Left $ OtherParseException e
-    env <- ask
-    liftIO $ print $ envCurrencies env
+    Env { envFromJPY } <- ask
+    liftIO $ print envFromJPY
     (CC.sourceFile (descPath)
       .| CC.map ((,) p)
       .| CC.map decodePlus) `catchC` handleNotFound

@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NamedFieldPuns             #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-|
@@ -20,9 +21,10 @@ module Data.Sumikac.Types
   , productBasename
 
     -- * Product components
+  , FromUSD
+  , NoYenRates
   , YenAmount
-  , Currencies
-  , noCurrencies
+  , mkYenRates
 
     -- * Product description
   , DescAccum(..)
@@ -38,23 +40,25 @@ module Data.Sumikac.Types
 where
 
 import           Control.Applicative
+import qualified Control.Exception   as Exc
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Data.Char            (toUpper, toLower)
-import           Data.Foldable        (foldl')
-import qualified Data.HashMap.Strict  as HM
-import           Data.Map.Strict      (Map)
-import qualified Data.Map.Strict      as Map
+import           Data.Char           (toLower, toUpper)
+import           Data.Foldable       (foldl')
+import qualified Data.HashMap.Strict as HM
+import           Data.Map.Strict     (Map)
+import qualified Data.Map.Strict     as Map
 import           Data.Maybe
-import           Data.Monoid          ((<>))
-import           Data.Scientific      (Scientific)
-import           Data.Text            (Text, replace, unpack)
-import qualified Data.Text            as T
+import           Data.Monoid         ((<>))
+import           Data.Scientific     as Sci
+import           Data.Text           (Text, replace, unpack)
+import qualified Data.Text           as T
+import           Data.Yaml           (ParseException (..))
 
-import           Data.List            (drop, isPrefixOf)
+import           Data.List           (drop, isPrefixOf)
 import           GHC.Generics
-import           Numeric              (readDec)
-import           Text.Read            (readEither)
+import           Numeric             (readDec)
+import           Text.Read           (readEither)
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
@@ -323,7 +327,7 @@ drop3Options = defaultOptions
 --
 -- All Sumikacrafts products are priced in Yen
 newtype YenAmount = YenAmount
-  { unYenAmount :: Int} deriving (Eq, Ord, Num)
+  { unYenAmount :: Int} deriving (Eq, Ord, Num, Real)
 
 instance Show YenAmount where
   show = (++ " JPY"). show . unYenAmount
@@ -350,15 +354,35 @@ instance FromJSON YenAmount where
       Left err  -> fail err
       Right amt -> return amt
 
--- | Currencies contains the rates of exchange between currencies.
-data Currencies = Currencies
+-- | FromUSD contains the rates of exchange between currencies.
+data FromUSD = FromUSD
   {
-    _exRates :: Map Text Scientific
+    _fuRates :: Map Text Scientific
   } deriving (Show, Generic)
 
+-- | Determine the conversion rates from Japanese Yen to the target currencies.
+--
+-- If the products were priced in USD, we could multiply their prices using the
+-- values in FromUSD directly to get the currency specific rates. However, they
+-- are priced in JPY so instead we compute conversion rates from JPY
+mkYenRates
+  :: Foldable t
+  => FromUSD -> t Text -> Either ParseException (Map Text Double)
+mkYenRates FromUSD {_fuRates} xs =
+  let chosenCurr = Map.filterWithKey (\k _ -> elem k xs) _fuRates
+      sciDiv x y = (Sci.toRealFloat x :: Double) / (Sci.toRealFloat y :: Double)
+  in
+    case Map.lookup "JPY" _fuRates of
+      Just rate -> Right $ Map.map (\x -> x `sciDiv` rate) chosenCurr
+      _         -> Left $ OtherParseException $ Exc.toException NoYenRates
 
-noCurrencies :: Currencies
-noCurrencies = Currencies Map.empty
+-- | Exception that indicates that Yen conversion rates could not be derived.
+data NoYenRates = NoYenRates
+
+instance Show NoYenRates where
+  show _ = "Could not compute the Yen conversion rates"
+
+instance Exc.Exception NoYenRates
 
 currenciesOptions :: Options
 currenciesOptions = defaultOptions
@@ -366,9 +390,9 @@ currenciesOptions = defaultOptions
   , omitNothingFields = True
   }
 
-instance FromJSON Currencies where
+instance FromJSON FromUSD where
   parseJSON = genericParseJSON currenciesOptions
 
-instance ToJSON Currencies where
+instance ToJSON FromUSD where
   toJSON = genericToJSON currenciesOptions
   toEncoding = genericToEncoding currenciesOptions

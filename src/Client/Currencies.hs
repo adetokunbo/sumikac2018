@@ -36,7 +36,7 @@ download :: FilePath -> IO ()
 download path = do
   createDirectoryIfMissing True $ takeDirectory path
   req <- parseRequest apiURI
-  resp :: Response Currencies <- httpJSON req -- see Note httpJSON vs httpJSONEither
+  resp :: Response FromUSD <- httpJSON req -- see Note httpJSON vs httpJSONEither
   BS.writeFile path $ encode $ getResponseBody resp
 
 {- Note httpJSON vs httpJSONEither
