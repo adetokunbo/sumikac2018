@@ -14,6 +14,8 @@ module Path.Default
   )
 where
 
+import Control.Monad.IO.Class
+
 import           System.Directory (createDirectoryIfMissing, getHomeDirectory)
 import           System.FilePath  ((</>))
 
@@ -22,12 +24,12 @@ defaultDirRel :: FilePath
 defaultDirRel = ".sumikac" </> "downloads"
 
 -- | The default directory on this system.
-defaultDir :: IO FilePath
-defaultDir = (</> defaultDirRel) <$> getHomeDirectory
+defaultDir :: (MonadIO m) => m FilePath
+defaultDir = liftIO $ (</> defaultDirRel) <$> getHomeDirectory
 
 -- | Ensures the default directory is available.
-createDefaultDirIfMissing :: IO FilePath
+createDefaultDirIfMissing :: (MonadIO m) => m FilePath
 createDefaultDirIfMissing = do
   dir <- defaultDir
-  createDirectoryIfMissing True dir
+  liftIO $ createDirectoryIfMissing True dir
   return dir
