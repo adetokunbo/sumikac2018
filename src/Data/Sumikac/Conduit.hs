@@ -171,11 +171,10 @@ pipeToFullProduct
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
-    let descPath = toDescPath path
-        decodePlus (prod, content) = FullProduct prod <$> decodeEither' content
-        handleNotFound e = yield $ Left $ OtherParseException e
     Env { envFromJPY } <- ask
-    liftIO $ print envFromJPY
+    let descPath = toDescPath path
+        decodePlus (prod, content) = fullProduct prod envFromJPY <$> decodeEither' content
+        handleNotFound e = yield $ Left $ OtherParseException e
     (CC.sourceFile (descPath)
       .| CC.map ((,) p)
       .| CC.map decodePlus) `catchC` handleNotFound

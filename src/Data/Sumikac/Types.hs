@@ -17,6 +17,7 @@ module Data.Sumikac.Types
     -- * Product definition
     FullProduct(..)
   , Product(..)
+  , fullProduct
   , fullProductBasename
   , productBasename
 
@@ -73,8 +74,13 @@ fullProductBasename =
 -- sources in a single.
 data FullProduct = FullProduct
   { _fpProduct  :: Product
+  , _fpAllPrices :: Map Text Scientific
   , _fpFullDesc :: FullDesc
   } deriving (Show, Generic)
+
+-- | Smart constructor for creating a full product
+fullProduct :: RealFloat a => Product -> Map Text a -> FullDesc -> FullProduct
+fullProduct p curr = FullProduct p $ mkPrices p curr
 
 instance FromJSON FullProduct where
   parseJSON = genericParseJSON drop3Options
@@ -327,7 +333,7 @@ drop3Options = defaultOptions
 --
 -- All Sumikacrafts products are priced in Yen
 newtype YenAmount = YenAmount
-  { unYenAmount :: Int} deriving (Eq, Ord, Num, Real)
+  { unYenAmount :: Int} deriving (Eq, Ord, Num, Enum, Real, Integral)
 
 instance Show YenAmount where
   show = (++ " JPY"). show . unYenAmount
@@ -375,6 +381,10 @@ mkYenRates FromUSD {_fuRates} xs =
     case Map.lookup "JPY" _fuRates of
       Just rate -> Right $ Map.map (\x -> x `sciDiv` rate) chosenCurr
       _         -> Left $ OtherParseException $ Exc.toException NoYenRates
+
+-- | Derive the prices in multiple currencies from the prices in Yen
+mkPrices :: RealFloat a => Product -> Map k a -> Map k Scientific
+mkPrices p = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral $ _price p))
 
 -- | Exception that indicates that Yen conversion rates could not be derived.
 data NoYenRates = NoYenRates
