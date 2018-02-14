@@ -93,6 +93,14 @@ instance ToJSON FullProduct where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
+drop3Options :: Options
+drop3Options = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
+  where
+    modifyFields = transformFst toUpper . drop 3
+
 -- | The basename of the path to store the encoded 'Product'.
 productBasename :: Product -> FilePath
 productBasename = mkBasename ".yaml" . _internalName
@@ -321,17 +329,9 @@ transformFst :: (Char -> Char) -> String -> String
 transformFst _ []     = []
 transformFst f (x:xs) = (f x):xs
 
--- | Make files basename given its extension
+-- | Make files basename given its extension.
 mkBasename :: Text -> Text -> FilePath
 mkBasename ext = T.unpack . (<> ext) . T.replace "/" "-"
-
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
 
 -- | YenAmount represents a price or cost in Japanese Yen.
 --
@@ -386,10 +386,9 @@ mkYenRates FromUSD {_fuRates} xs =
       Just rate -> Right $ Map.map (\x -> x `sciDiv` rate) chosenCurr
       _         -> Left $ OtherParseException $ Exc.toException NoYenRates
 
--- | Derive the prices in multiple currencies from the prices in Yen
+-- | Derive the prices in multiple currencies from the prices in Yen.
 mkPrices :: RealFloat a => Product -> Map k a -> Map k Scientific
 mkPrices p = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral $ _price p))
-
 -- | Exception that indicates that Yen conversion rates could not be derived.
 data NoYenRates = NoYenRates
 
