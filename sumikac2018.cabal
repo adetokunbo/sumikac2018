@@ -47,6 +47,7 @@ library
                      , conduit-extra >= 1.2.3.2
                      , containers    >= 0.5
                      , directory     >= 1.3 && < 1.4
+                     , exceptions    >= 0.8
                      , filepath      >= 1.4 && < 1.5
                      , formatting    >= 6.2 && < 6.3
                      , gogol         == 0.3.0.*

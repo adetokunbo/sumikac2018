@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE ExtendedDefaultRules #-}
 {-# LANGUAGE GADTs                #-}
 {-# LANGUAGE OverloadedStrings    #-}
@@ -27,6 +28,7 @@ module Network.HTTP.Gogol.Drive
 where
 ---------------------------------------------------------------------------------
 import           Control.Monad                (foldM, forM_)
+import           Control.Monad.Catch
 import           Control.Monad.Trans.Resource (liftResourceT, runResourceT)
 import           Data.Maybe                   (catMaybes, listToMaybe)
 import           Data.Text                    (Text, replace, split, unpack)
@@ -113,7 +115,9 @@ gdoc2base = unpack . replace " " "_"
 -- This dumps the 'FileList' object containing all the 'File' objects in the
 -- folder, resulting in very dense output. To get a simplier view, use
 -- 'exampleListFolderNames' or 'exampleListFolderNamesWithIds'
-listFolder :: Text -> IO FileList
+listFolder
+  :: (MonadBaseControl IO m, MonadResource m, MonadCatch m)
+  => Text -> m FileList
 listFolder name = do
   let withId fl = do
         f <- listToMaybe $ fl ^. flFiles
@@ -139,13 +143,18 @@ listFolder name = do
       _ -> return $ fileList
 
 -- | Lists the names of all non-folder files in a Drive folder.
-listFolderNames :: Text -> IO [Text]
+listFolderNames
+  :: (MonadBaseControl IO m, MonadResource m, MonadCatch m)
+  => Text -> m [Text]
 listFolderNames name = do
   files <- (^. flFiles) <$> listFolder name
   return $ catMaybes $ (^. fName) <$> files
 
 -- | Lists the names and ids of all non-folder files in a Drive folder.
-listFolderNamesWithIds :: Text -> IO [(Text, Text)]
+listFolderNamesWithIds
+  :: (MonadBaseControl IO m, MonadResource m, MonadCatch m)
+  => Text
+  -> m [(Text, Text)]
 listFolderNamesWithIds name = do
   files <- (^. flFiles) <$> listFolder name
   return $ catMaybes $ nameAndId <$> files
@@ -160,15 +169,21 @@ downloadAFile srcId dst = do
     liftResourceT (stream $$+- sinkFile dst)
 
 -- | Download the files in a folder to a local directory.
-downloadFolderToDir :: Text -> FilePath -> IO FilePath
+downloadFolderToDir
+  :: (MonadBaseControl IO m, MonadResource m, MonadCatch m)
+  => Text -> FilePath -> m FilePath
 downloadFolderToDir folder d = do
   let subd = d </> gdoc2base folder
-  createDirectoryIfMissing True subd
+  liftIO $ createDirectoryIfMissing True subd
   namesAndIds <- listFolderNamesWithIds folder
-  forM_ namesAndIds $ \(name, itsId) -> do
+  liftIO $ forM_ namesAndIds $ \(name, itsId) -> do
     downloadAFile itsId $ subd </> gdoc2base name ++ ".yaml"
   return subd
 
--- | Download the files in a folder in a standard location.
-downloadFolder :: Text -> IO FilePath
-downloadFolder f = createDefaultDirIfMissing >>= downloadFolderToDir f
+-- | Download the files in a folder to a standard location.
+downloadFolder
+  :: (MonadBaseControl IO m, MonadResource m, MonadCatch m)
+  => Text -> m FilePath
+downloadFolder f = do
+  d <- liftIO $ createDefaultDirIfMissing
+  downloadFolderToDir f d
