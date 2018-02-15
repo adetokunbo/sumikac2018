@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-|
 Module      : Main.hs
 Description : Top-level Main for create-sumikac-site.
@@ -8,25 +9,20 @@ Stability   : experimental
 -}
 module Main where
 
-import           Data.Aeson
-import           Data.ByteString.Lazy as LBS
-
+import qualified Network.HTTP.Gogol.Picasa as GP
 import           Sumikac.Conduit
-import           Sumikac.Types.Picasa
 
-mainParse :: IO ()
-mainParse = do
+mainDownloadProducts :: IO ()
+mainDownloadProducts = do
   let src = "/Users/tbetbetbe/tmp/test_download2/"
   let dst = "/Users/tbetbetbe/tmp/remove_me"
   runAll src dst
 
-mainParsePicasa :: IO ()
-mainParsePicasa = do
-  let jsonFile = "/Users/tbetbetbe/tmp/test_download2/1album.json"
-  bytes <- LBS.readFile jsonFile
-  case eitherDecode bytes :: Either String RawImageGroups of
-    Left err -> print err
-    Right (RawImageGroups imgs) -> mapM_ (print . _poContent . unImageGroup) imgs
+mainWebAlbums :: IO ()
+mainWebAlbums = do
+  let dir = "/Users/tbetbetbe/tmp/test_download3/"
+      user = "maya.n@sumikacrafts.com"
+  GP.main dir user
 
 main :: IO ()
-main = mainParsePicasa
+main = mainWebAlbums

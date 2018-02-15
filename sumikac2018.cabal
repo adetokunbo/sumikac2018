@@ -6,8 +6,7 @@ synopsis:            SumikaCrafts site generator
 description:         Generates the sumikacrafts site from documents stored in Google                      Drive
 
 homepage:            https://github.com/adetokunbo/sumikac2018#readme
-license:             None
-license-file:        None
+license:             AllRightsReserved
 author:              Tim Emiola
 maintainer:          adetokunbo@users.noreply.github.com
 copyright:           BSD3
@@ -35,6 +34,7 @@ library
                        -Wredundant-constraints
 
   exposed-modules:     Network.HTTP.Gogol.Drive
+                     , Network.HTTP.Gogol.Picasa
                      , Network.HTTP.OpenExchangeRates
                      , Path.Default
                      , Sumikac.Conduit
@@ -56,8 +56,11 @@ library
                      , gogol         == 0.3.0.*
                      , gogol-core    == 0.3.0.*
                      , gogol-drive   == 0.3.0.*
+                     , http-client   >= 0.5
                      , http-conduit  >= 2.2
+                     , http-types    >= 0.9
                      , lens          >= 4.15.4
+                     , network-uri >= 2.6
                      , mtl           >= 2.2.1
                      , path          >= 0.6.1
                      , resourcet     >= 1.1.11
