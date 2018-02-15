@@ -12,59 +12,78 @@ Stability   : experimental
 -}
 module Sumikac.Types.Picasa
     (
-      AlbumEntry(..)
+      WebAlbum(..)
     , ImageGroup(..)
-    , ProductImages(..)
-    , RawAlbums(..)
-    , RawAlbumEntry(..)
-    , RawImageGroups(..)
-    , RawImageGroup(..)
+    , ParseException
+    , webAlbumBasename
+    , decodeWebAlbums
+    , decodeImageGroups
+    , isSumikaCrafts
     ) where
 
 
+import qualified Control.Exception   as Exc
 import           Data.Char    (toLower, toUpper)
 import           Data.List    (drop)
-import           Data.Text    (Text)
+import Data.Monoid
+import           Data.Text    (Text, isPrefixOf, replace, unpack)
+import           Data.ByteString.Lazy (ByteString)
 
 import           Data.Aeson
 
 import           GHC.Generics
 
--- | All the images found on Picasa album tagged with the product's internal
--- name.
-data ProductImages= ProductImages
-  { _piInternalName :: Text
-  , _piImages       :: [ImageGroup]
-  } deriving (Show, Generic)
+-- | Indicates that the Picasa Web JSON could not be parsed.
+data ParseException = ParseException String
 
-instance FromJSON ProductImages where
-  parseJSON = genericParseJSON drop3Options
+instance Show ParseException where
+  show (ParseException s) = "Could not parse Picasa JSON: " ++ s
 
-instance ToJSON ProductImages where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+instance Exc.Exception ParseException
+
+-- | Decodes a list of 'WebAlbum' from a 'ByteString' containing a Picasa
+-- Album JSON response.
+decodeWebAlbums :: ByteString -> Either ParseException [WebAlbum]
+decodeWebAlbums b = case eitherDecode b of
+    Left s -> Left $ ParseException s
+    Right (RawAlbums xs) -> Right $ map unWebAlbum xs
+
+-- | Filter albums that indicates where albums are SumikaCrafts image albums
+isSumikaCrafts :: WebAlbum -> Bool
+isSumikaCrafts = isPrefixOf scPrefix . _aeSummary
+
+-- | The prefix of all SumikaCrafts Web Albums.
+scPrefix :: Text
+scPrefix = "sc/"
+
+-- | The basename of the path to store the images from an 'WebAlbum'
+webAlbumBasename :: WebAlbum -> FilePath
+webAlbumBasename =
+  mkBasename "-web-images.yaml"
+  . replace scPrefix ""
+  .  _aeSummary
 
 -- | An entry from a Picasa web album.
-data AlbumEntry = AlbumEntry
+data WebAlbum = WebAlbum
   { _aeTitle   :: Text
   , _aeSummary :: Text
   , _aeId      :: Text
   , _aeName    :: Text
   } deriving (Show, Generic)
 
-instance FromJSON AlbumEntry where
+instance FromJSON WebAlbum where
   parseJSON = genericParseJSON drop3Options
 
-instance ToJSON AlbumEntry where
+instance ToJSON WebAlbum where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
 
--- | Same as 'AlbumEntry' wrapped in a newtype to allow it parsed using the more
+-- | Same as 'WebAlbum' wrapped in a newtype to allow it parsed using the more
 -- complex parser required for the Picasa API json output.
-newtype RawAlbumEntry = RawAlbumEntry {unAlbumEntry :: AlbumEntry}
+newtype RawWebAlbum = RawWebAlbum {unWebAlbum :: WebAlbum}
   deriving (Show)
 
-instance FromJSON RawAlbumEntry where
+instance FromJSON RawWebAlbum where
   parseJSON = withObject "entry" $ \o -> do
     rawTitle <- o .: "title"
     _aeTitle <- rawTitle .: "$t"
@@ -74,10 +93,10 @@ instance FromJSON RawAlbumEntry where
     _aeId <- rawId .: "$t"
     rawName <- o .: "gphoto$name"
     _aeName <- rawName .: "$t"
-    return $ RawAlbumEntry $ AlbumEntry _aeTitle _aeSummary _aeId _aeName
+    return $ RawWebAlbum $ WebAlbum _aeTitle _aeSummary _aeId _aeName
 
 -- | A collection of RawAlbums parsed from the Picasa API json.
-data RawAlbums = RawAlbums [RawAlbumEntry]
+data RawAlbums = RawAlbums [RawWebAlbum]
   deriving (Show)
 
 instance FromJSON RawAlbums where
@@ -85,19 +104,13 @@ instance FromJSON RawAlbums where
     feed <- o .: "feed"
     entries <- feed .: "entry"
     return $ RawAlbums entries
--- | The description of a direct image link accessible from Picasa web albums.
-data WebImage = WebImage
-  { _wiUrl    :: Text
-  , _wiHeight :: Int
-  , _wiWidth  :: Int
-  } deriving (Show, Generic)
 
-instance FromJSON WebImage where
-  parseJSON = genericParseJSON webImageOptions
-
-instance ToJSON WebImage where
-  toJSON = genericToJSON webImageOptions
-  toEncoding = genericToEncoding webImageOptions
+-- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
+-- Photo JSON response.
+decodeImageGroups :: ByteString -> Either ParseException [ImageGroup]
+decodeImageGroups b =  case eitherDecode b of
+    Left s -> Left $ ParseException s
+    Right (RawImageGroups imgs) -> Right $ map unImageGroup imgs
 
 -- | A group of 'WebImage's related to each single photo in a Picasa album.
 data ImageGroup = ImageGroup
@@ -111,6 +124,20 @@ instance FromJSON ImageGroup where
 instance ToJSON ImageGroup where
   toJSON = genericToJSON drop3Options
   toEncoding = genericToEncoding drop3Options
+
+-- | The description of a direct image link accessible from Picasa web albums.
+data WebImage = WebImage
+  { _wiUrl    :: Text
+  , _wiHeight :: Int
+  , _wiWidth  :: Int
+  } deriving (Show, Generic)
+
+instance FromJSON WebImage where
+  parseJSON = genericParseJSON webImageOptions
+
+instance ToJSON WebImage where
+  toJSON = genericToJSON webImageOptions
+  toEncoding = genericToEncoding webImageOptions
 
 -- | Same as 'ImageGroup' wrapped in a newtype to allow it to be parsed using
 -- directl from the complex Picasa API json.
@@ -154,3 +181,7 @@ webImageOptions = defaultOptions
 transformFst :: (Char -> Char) -> String -> String
 transformFst _ []     = []
 transformFst f (x:xs) = (f x):xs
+
+-- | Make files basename given its extension.
+mkBasename :: Text -> Text -> FilePath
+mkBasename ext = unpack . (<> ext) . replace "/" "-"
