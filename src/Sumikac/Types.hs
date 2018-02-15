@@ -389,6 +389,7 @@ mkYenRates FromUSD {_fuRates} xs =
 -- | Derive the prices in multiple currencies from the prices in Yen.
 mkPrices :: RealFloat a => Product -> Map k a -> Map k Scientific
 mkPrices p = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral $ _price p))
+
 -- | Exception that indicates that Yen conversion rates could not be derived.
 data NoYenRates = NoYenRates
 
