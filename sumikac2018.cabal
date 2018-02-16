@@ -40,6 +40,7 @@ library
                      , Sumikac.Conduit
                      , Sumikac.Types
                      , Sumikac.Types.Picasa
+                     , Sumikac.Types.YenAmount
 
   build-depends:       aeson         >= 1.2.3
                      , attoparsec    >= 0.13 && < 0.14

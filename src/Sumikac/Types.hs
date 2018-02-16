@@ -24,7 +24,6 @@ module Sumikac.Types
     -- * Product components
   , FromUSD
   , NoYenRates
-  , YenAmount
   , mkYenRates
 
     -- * Product description
@@ -46,16 +45,13 @@ import qualified Control.Exception   as Exc
 import           Data.Char           (toLower, toUpper)
 import           Data.Foldable       (foldl')
 import qualified Data.HashMap.Strict as HM
-import           Data.List           (drop, isPrefixOf)
+import           Data.List           (drop)
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           Data.Maybe
 import           Data.Monoid         ((<>))
 import           Data.Text           (Text)
 import qualified Data.Text           as T
-import           Numeric             (readDec)
-import           Text.Read           (readEither)
-
 
 import           Data.Aeson
 import           Data.Aeson.Types
@@ -64,6 +60,7 @@ import           Data.Yaml           (ParseException (..))
 
 import           GHC.Generics
 
+import Sumikac.Types.YenAmount
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
@@ -332,37 +329,6 @@ transformFst f (x:xs) = (f x):xs
 -- | Make files basename given its extension.
 mkBasename :: Text -> Text -> FilePath
 mkBasename ext = T.unpack . (<> ext) . T.replace "/" "-"
-
--- | YenAmount represents a price or cost in Japanese Yen.
---
--- All Sumikacrafts products are priced in Yen
-newtype YenAmount = YenAmount
-  { unYenAmount :: Int} deriving (Eq, Ord, Num, Enum, Real, Integral)
-
-instance Show YenAmount where
-  show = (++ " JPY"). show . unYenAmount
-
-instance Read YenAmount where
-  readsPrec _ s = case (readDec s) of
-    [(x, rest)] | " JPY" `isPrefixOf` rest -> [(YenAmount x, drop 4 rest)]
-    _           -> []
-
-instance ToJSON YenAmount where
-  toJSON = toJSON . show
-  toEncoding = toEncoding . show
-
-readYenAmount :: Text -> Either String YenAmount
-readYenAmount x =
-  case (readEither $ T.unpack x) of
-    Left _  -> Left "Must be an amount followed by ' JPY'"
-    Right y | y < 0 -> Left "Must be a positive Yen amount"
-    z       -> z
-
-instance FromJSON YenAmount where
-  parseJSON = withText "Yen Amount" $ \x -> do
-    case readYenAmount x of
-      Left err  -> fail err
-      Right amt -> return amt
 
 -- | FromUSD contains the rates of exchange between currencies.
 data FromUSD = FromUSD
