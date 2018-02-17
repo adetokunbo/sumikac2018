@@ -1,0 +1,18 @@
+:set -XOverloadedStrings
+:set -XFlexibleContexts
+import System.FilePath
+import Data.Aeson.Lens
+import Control.Lens hiding (elements, element, children)
+import Network.Wreq
+import Text.Taggy.Lens
+import Data.Text.Encoding.Error (lenientDecode)
+import Data.Text.Lazy.Encoding (decodeUtf8With)
+import Text.Pretty.Simple (pPrint)
+
+downloadDir = "/Users/tbetbetbe/tmp/test_download2/"
+chargesURL = "http://www.post.japanpost.jp/int/charge/list/ems_all_en.html"
+htmlBody = responseBody . to (decodeUtf8With lenientDecode) . html
+findTbodies = htmlBody . allNamed (only "tbody")
+tbodyRows req = maybe [] id $ req ^.. findTbodies ^? (ix 2) . children
+titleTds rs = maybe [] id $ rs ^? ix 1 . element . children
+rowData tds = tds ^.. traverse . element . contents
