@@ -33,12 +33,14 @@ library
                        -Wincomplete-uni-patterns
                        -Wredundant-constraints
 
-  exposed-modules:     Network.HTTP.Gogol.Drive
+  exposed-modules:     Network.HTTP.EmsSiteScrape
+                     , Network.HTTP.Gogol.Drive
                      , Network.HTTP.Gogol.Picasa
                      , Network.HTTP.OpenExchangeRates
                      , Path.Default
                      , Sumikac.Conduit
                      , Sumikac.Types
+                     , Sumikac.Types.EmsDeliveryCosts
                      , Sumikac.Types.Picasa
                      , Sumikac.Types.Weight
                      , Sumikac.Types.YenAmount
@@ -55,18 +57,23 @@ library
                      , exceptions    >= 0.8
                      , filepath      >= 1.4 && < 1.5
                      , formatting    >= 6.2 && < 6.3
-                     , gogol         == 0.3.0.*
-                     , gogol-core    == 0.3.0.*
-                     , gogol-drive   == 0.3.0.*
+                     , gogol         >= 0.3 && < 1.0
+                     , gogol-core    >= 0.3 && < 1.0
+                     , gogol-drive   >= 0.3 && < 1.0
                      , http-client   >= 0.5
                      , http-conduit  >= 2.2
                      , http-types    >= 0.9
                      , lens          >= 4.15.4
-                     , network-uri >= 2.6
+                     , lens-aeson    >= 1.0
+                     , network-uri   >= 2.6
                      , mtl           >= 2.2.1
                      , path          >= 0.6.1
+                     , pretty-simple >= 2.0
                      , resourcet     >= 1.1.11
                      , scientific    >= 0.3
+                     , taggy         >= 0.2.1
+                     , taggy-lens    >= 0.1.2
                      , text          >= 1.2.2
                      , unordered-containers >= 0.2
                      , yaml          >= 0.8.28
+                     , wreq          >= 0.5

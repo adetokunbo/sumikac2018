@@ -10,6 +10,7 @@ Stability   : experimental
 module Main where
 
 import qualified Network.HTTP.Gogol.Picasa as GP
+import qualified Network.HTTP.EmsSiteScrape as ESS
 import           Sumikac.Conduit
 
 mainDownloadProducts :: IO ()
@@ -24,5 +25,10 @@ mainWebAlbums = do
       user = "maya.n@sumikacrafts.com"
   GP.main dir user
 
+mainEmsScrape :: IO ()
+mainEmsScrape = do
+  let dst = "/Users/tbetbetbe/tmp/remove_me/ems_rates.yaml"
+  ESS.scrapeTo dst
+
 main :: IO ()
-main = mainWebAlbums
+main = mainEmsScrape
