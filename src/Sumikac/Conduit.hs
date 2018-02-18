@@ -52,27 +52,34 @@ import           System.Directory
 import           System.FilePath
 
 import           Sumikac.Types
+import           Sumikac.Types.EmsDeliveryCosts
 
 -- Env is an environment available to all processing pipelines.
 --
 -- Initially it just contains the currencies.
 data Env = Env
   {envFromJPY :: Map Text Double
+  , deliveryCosts :: EmsDeliveryCosts
   }
 
-loadFromJPYRates
+-- | Load files that provide static configuration data.
+loadEnv
   :: (MonadIO m)
   => FilePath
-  -> m (Either ParseException (Map Text Double))
-loadFromJPYRates src = liftIO $ do
+  -> m (Either ParseException Env)
+loadEnv src = liftIO $ do
     let ratesPath = src </> "latest_rates.yaml"
         currenciesPath = src </> "site_currencies.yaml"
+        deliveryCostPath = src </> "ems_delivery_costs.yaml"
     fromUSD <- decodeFileEither ratesPath
     currencies <- decodeFileEither currenciesPath
+    emsRates <- decodeFileEither deliveryCostPath
     return $ do
       currencies' <- currencies
       fromUSD' <- fromUSD
-      mkYenRates currencies' fromUSD'
+      emsRates' <- emsRates
+      yenRates <- mkYenRates currencies' fromUSD'
+      return $ Env yenRates emsRates'
 
 -- | Run the pipes that regenerate the site.
 runAll
@@ -84,13 +91,12 @@ runAll src dst = do
   let prodDir = src </> "Products"
       descDir = prodDir </> "Description/English"
 
-  fromJPY <- loadFromJPYRates src
-  case fromJPY of
+  env <- loadEnv src
+  case env of
     Left e -> throwM e -- could not load the currencies file, fail
-    Right fromJPY' -> do
-      let env = Env fromJPY'
+    Right env' -> do
       runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-      runReaderT (runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst) env
+      runReaderT (runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst) env'
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --

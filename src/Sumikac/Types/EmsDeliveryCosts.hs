@@ -70,8 +70,6 @@ type EmsDeliveryCosts = Map Weight (Map EmsZone YenAmount)
 data EmsZone = Asia | Europe | Oceania | SouthAtlantic
   deriving (Eq, Ord, Show, Read)
 
-instance ToJSONKey EmsZone
-
 instance ToJSON EmsZone where
   toJSON = toJSON . show
   toEncoding = toEncoding . show
@@ -81,6 +79,9 @@ instance FromJSON EmsZone where
     case readEmsZone x of
       Left err  -> fail err
       Right amt -> return amt
+
+instance ToJSONKey EmsZone
+instance FromJSONKey EmsZone
 
 readEmsZone :: Text -> Either String EmsZone
 readEmsZone x =

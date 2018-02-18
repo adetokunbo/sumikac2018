@@ -53,13 +53,14 @@ instance ToJSON Weight where
   toJSON = toJSON . show
   toEncoding = toEncoding . show
 
-instance ToJSONKey Weight
-
 instance FromJSON Weight where
   parseJSON = withText "Weight" $ \x -> do
     case readWeight x of
       Left err  -> fail err
       Right amt -> return amt
+
+instance ToJSONKey Weight
+instance FromJSONKey Weight
 
 weight :: Double -> Weight
 weight =  Weight . round
