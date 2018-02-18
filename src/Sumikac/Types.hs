@@ -20,6 +20,7 @@ module Sumikac.Types
   , fullProduct
   , fullProductBasename
   , productBasename
+  , allDeliveryCosts
 
     -- * Product components
   , FromUSD
@@ -29,6 +30,7 @@ module Sumikac.Types
     -- * Product description
   , DescAccum(..)
   , FullDesc(..)
+  , FullProductEnv(..)
   , LitDesc(..)
   , LabelledBlock(..)
   , ShortDesc(..)
@@ -40,48 +42,80 @@ module Sumikac.Types
 where
 
 import           Control.Applicative
-import qualified Control.Exception   as Exc
+import qualified Control.Exception       as Exc
 
-import           Data.Char           (toLower, toUpper)
-import           Data.Foldable       (foldl')
-import qualified Data.HashMap.Strict as HM
-import           Data.List           (drop)
-import           Data.Map.Strict     (Map)
-import qualified Data.Map.Strict     as Map
+import           Data.Char               (toLower, toUpper)
+import           Data.Foldable           (foldl')
+import qualified Data.HashMap.Strict     as HM
+import           Data.List               (drop)
+import           Data.Map.Strict         (Map)
+import qualified Data.Map.Strict         as Map
 import           Data.Maybe
-import           Data.Monoid         ((<>))
-import           Data.Text           (Text)
-import qualified Data.Text           as T
+import           Data.Monoid             ((<>))
+import           Data.Text               (Text)
+import qualified Data.Text               as T
 
 import           Data.Aeson
 import           Data.Aeson.Types
-import           Data.Scientific     as Sci
-import           Data.Yaml           (ParseException (..))
+import           Data.Scientific         as Sci
+import           Data.Yaml               (ParseException (..))
 
 import           GHC.Generics
 
-import Sumikac.Types.YenAmount
+import           Sumikac.Types.Weight
+import           Sumikac.Types.YenAmount
+import           Sumikac.Types.EmsDeliveryCosts
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
-
 
 -- | The basename of the path to store the encoded 'FullProduct'.
 fullProductBasename :: FullProduct-> FilePath
 fullProductBasename =
   mkBasename "-complete.yaml" .  _fdInternalName . _fpFullDesc
 
+-- | Smart constructor for creating a full product
+fullProduct
+  :: Product -> FullProductEnv -> FullDesc -> FullProduct
+fullProduct p fpe@(FullProductEnv { _fpeRates, _fpeCosts }) =
+  let
+    dc = allDeliveryCosts fpe p
+  in
+    FullProduct p dc $ mkPrices p _fpeRates
+
+-- | Context used when creating a 'FullProduct' with a product
+data FullProductEnv = FullProductEnv
+  { _fpeRates :: Map Text Double
+  , _fpeCosts :: EmsDeliveryCosts
+  }
+
+-- | Determine the deliveryCosts for a single product in multiple currencies.
+allDeliveryCosts
+  :: FullProductEnv
+  -> Product
+  -> Maybe (Map EmsZone (Map Text Scientific))
+allDeliveryCosts env p = Map.map expand <$> yenCosts
+  where
+    FullProductEnv { _fpeCosts, _fpeRates} = env
+    expand = flip multiplyValues _fpeRates
+    multiplyValues y = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral y))
+    yenCosts = yenDeliveryCosts _fpeCosts p
+
+-- | Determine the deliveryCosts in Yen of a single product.
+yenDeliveryCosts :: EmsDeliveryCosts -> Product -> Maybe (Map EmsZone YenAmount)
+yenDeliveryCosts costs p = calc theWeight
+  where theWeight = _weight p <|> _weightAfterWrapping p
+        calc Nothing  = snd <$> Map.lookupMin costs
+        calc (Just x) = lookupAtWeight x costs
+
 -- | FullProduct provies the information about a given product from different
 -- sources in a single.
 data FullProduct = FullProduct
   { _fpProduct   :: Product
+  , _fpDeliveryCosts :: Maybe (Map EmsZone (Map Text Scientific))
   , _fpAllPrices :: Map Text Scientific
   , _fpFullDesc  :: FullDesc
   } deriving (Show, Generic)
-
--- | Smart constructor for creating a full product
-fullProduct :: RealFloat a => Product -> Map Text a -> FullDesc -> FullProduct
-fullProduct p curr = FullProduct p $ mkPrices p curr
 
 instance FromJSON FullProduct where
   parseJSON = genericParseJSON drop3Options
@@ -122,8 +156,8 @@ data Product = Product
   , _setSizes            :: Maybe [Int]
   , _shape               :: Maybe [Text]
   , _supplier            :: Maybe Text
-  , _weight              :: Maybe Text
-  , _weightAfterWrapping :: Maybe Text
+  , _weight              :: Maybe Weight
+  , _weightAfterWrapping :: Maybe Weight
   } deriving (Show, Generic)
 
 productOptions :: Options

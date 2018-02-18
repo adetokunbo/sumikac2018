@@ -12,10 +12,12 @@ module Sumikac.Types.EmsDeliveryCosts
   , EmsZone
   , CellHeader
   , CellValue
+  , lookupAtWeight
   , scrapeTable
   , scrapeRow
   ) where
 
+import Control.Applicative
 
 import           Data.Aeson
 import           Data.Foldable           (fold)
@@ -54,6 +56,12 @@ scrapeZoneCost (z, amt) = Map.singleton <$> readHtmlEmsZone z <*> scrapeYen amt
   where scrapeYen = readYenAmount
           . Text.replace "," ""
           . Text.replace " yen" " JPY"
+
+-- | Lookup the delivery costs to each zone at a given weight
+lookupAtWeight :: Weight -> EmsDeliveryCosts -> Maybe (Map EmsZone YenAmount)
+lookupAtWeight w costs =
+  let biggest = Map.lookupGE w costs <|> Map.lookupMax costs
+  in snd <$> biggest
 
 -- | Types used to make the scrapeXXX signatures more readable.
 type CellHeader = Text

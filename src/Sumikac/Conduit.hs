@@ -33,7 +33,6 @@ import           Control.Monad.Trans.Resource
 
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString.Char8        as BS
-import           Data.Map.Strict              (Map)
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
 
@@ -52,15 +51,15 @@ import           System.Directory
 import           System.FilePath
 
 import           Sumikac.Types
-import           Sumikac.Types.EmsDeliveryCosts
+
 
 -- Env is an environment available to all processing pipelines.
 --
 -- Initially it just contains the currencies.
 data Env = Env
-  {envFromJPY :: Map Text Double
-  , deliveryCosts :: EmsDeliveryCosts
+  { productEnv :: FullProductEnv
   }
+
 
 -- | Load files that provide static configuration data.
 loadEnv
@@ -78,8 +77,8 @@ loadEnv src = liftIO $ do
       currencies' <- currencies
       fromUSD' <- fromUSD
       emsRates' <- emsRates
-      yenRates <- mkYenRates currencies' fromUSD'
-      return $ Env yenRates emsRates'
+      fromYen <- mkYenRates currencies' fromUSD'
+      return $ Env $ FullProductEnv fromYen emsRates'
 
 -- | Run the pipes that regenerate the site.
 runAll
@@ -181,9 +180,10 @@ pipeToFullProduct
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
-    Env { envFromJPY } <- ask
+    Env { productEnv } <- ask
     let descPath = toDescPath path
-        decodePlus (prod, content) = fullProduct prod envFromJPY <$> decodeEither' content
+        decodePlus (prod, content) =
+          fullProduct prod productEnv <$> decodeEither' content
         handleNotFound e = yield $ Left $ OtherParseException e
     (CC.sourceFile (descPath)
       .| CC.map ((,) p)
