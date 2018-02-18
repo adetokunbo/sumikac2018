@@ -13,8 +13,8 @@ import qualified Network.HTTP.Gogol.Picasa as GP
 import qualified Network.HTTP.EmsSiteScrape as ESS
 import           Sumikac.Conduit
 
-mainDownloadProducts :: IO ()
-mainDownloadProducts = do
+mainParseProducts :: IO ()
+mainParseProducts = do
   let src = "/Users/tbetbetbe/tmp/test_download2/"
   let dst = "/Users/tbetbetbe/tmp/remove_me"
   runAll src dst
@@ -31,4 +31,4 @@ mainEmsScrape = do
   ESS.scrapeTo dst
 
 main :: IO ()
-main = mainEmsScrape
+main = mainParseProducts

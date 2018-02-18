@@ -60,19 +60,19 @@ data Env = Env
   {envFromJPY :: Map Text Double
   }
 
-defaultCurrencies :: [Text]
-defaultCurrencies = ["JPY", "USD", "GBP", "EUR"]
-
 loadFromJPYRates
   :: (MonadIO m)
   => FilePath
   -> m (Either ParseException (Map Text Double))
 loadFromJPYRates src = liftIO $ do
-    let currencyFile = src </> "latest_rates.yaml"
-    fromUSD <- decodeFileEither currencyFile
+    let ratesPath = src </> "latest_rates.yaml"
+        currenciesPath = src </> "site_currencies.yaml"
+    fromUSD <- decodeFileEither ratesPath
+    currencies <- decodeFileEither currenciesPath
     return $ do
+      currencies' <- currencies
       fromUSD' <- fromUSD
-      mkYenRates fromUSD' defaultCurrencies
+      mkYenRates currencies' fromUSD'
 
 -- | Run the pipes that regenerate the site.
 runAll

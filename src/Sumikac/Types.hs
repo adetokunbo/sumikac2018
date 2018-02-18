@@ -341,15 +341,18 @@ data FromUSD = FromUSD
 -- If the products were priced in USD, we could multiply their prices using the
 -- values in FromUSD directly to get the currency specific rates. However, they
 -- are priced in JPY so instead we compute conversion rates from JPY
+--
+-- Also, the site only displays a few currencies; the rest are dropped
 mkYenRates
-  :: Foldable t
-  => FromUSD -> t Text -> Either ParseException (Map Text Double)
-mkYenRates FromUSD {_fuRates} xs =
-  let chosenCurr = Map.filterWithKey (\k _ -> elem k xs) _fuRates
+  :: [Text]   -- ^ the currencies in which Yen exchange rates are required
+  -> FromUSD  -- ^ the USD based exchange rates
+  -> Either ParseException (Map Text Double)
+mkYenRates xs FromUSD {_fuRates} =
+  let filteredRates = Map.filterWithKey (\k _ -> elem k xs) _fuRates
       sciDiv x y = (Sci.toRealFloat x :: Double) / (Sci.toRealFloat y :: Double)
   in
     case Map.lookup "JPY" _fuRates of
-      Just rate -> Right $ Map.map (\x -> x `sciDiv` rate) chosenCurr
+      Just rate -> Right $ Map.map (\x -> x `sciDiv` rate) filteredRates
       _         -> Left $ OtherParseException $ Exc.toException NoYenRates
 
 -- | Derive the prices in multiple currencies from the prices in Yen.
