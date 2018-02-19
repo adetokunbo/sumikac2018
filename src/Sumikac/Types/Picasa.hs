@@ -14,7 +14,7 @@ module Sumikac.Types.Picasa
     (
       WebAlbum(..)
     , ImageGroup(..)
-    , ParseException
+    , WebAlbumException
     , webAlbumBasename
     , decodeWebAlbums
     , decodeImageGroups
@@ -34,18 +34,18 @@ import           Data.Aeson
 import           GHC.Generics
 
 -- | Indicates that the Picasa Web JSON could not be parsed.
-data ParseException = ParseException String
+data WebAlbumException = WebAlbumException String
 
-instance Show ParseException where
-  show (ParseException s) = "Could not parse Picasa JSON: " ++ s
+instance Show WebAlbumException where
+  show (WebAlbumException s) = "Could not parse Picasa JSON: " ++ s
 
-instance Exc.Exception ParseException
+instance Exc.Exception WebAlbumException
 
 -- | Decodes a list of 'WebAlbum' from a 'ByteString' containing a Picasa
 -- Album JSON response.
-decodeWebAlbums :: ByteString -> Either ParseException [WebAlbum]
+decodeWebAlbums :: ByteString -> Either WebAlbumException [WebAlbum]
 decodeWebAlbums b = case eitherDecode b of
-    Left s -> Left $ ParseException s
+    Left s -> Left $ WebAlbumException s
     Right (RawAlbums xs) -> Right $ map unWebAlbum xs
 
 -- | Filter albums that indicates where albums are SumikaCrafts image albums
@@ -107,9 +107,9 @@ instance FromJSON RawAlbums where
 
 -- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
 -- Photo JSON response.
-decodeImageGroups :: ByteString -> Either ParseException [ImageGroup]
+decodeImageGroups :: ByteString -> Either WebAlbumException [ImageGroup]
 decodeImageGroups b =  case eitherDecode b of
-    Left s -> Left $ ParseException s
+    Left s -> Left $ WebAlbumException s
     Right (RawImageGroups imgs) -> Right $ map unImageGroup imgs
 
 -- | A group of 'WebImage's related to each single photo in a Picasa album.

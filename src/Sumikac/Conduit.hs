@@ -1,4 +1,3 @@
-{-# LANGUAGE ExtendedDefaultRules  #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE NamedFieldPuns        #-}
@@ -50,9 +49,7 @@ import qualified Data.Conduit.Text            as CT
 import           System.Directory
 import           System.FilePath
 
-import           Sumikac.Types.Product
-import           Sumikac.Types.Description
-import           Sumikac.Types.ExchangeRates
+import           Sumikac.Types
 
 -- Env is an environment available to all processing pipelines.
 --
