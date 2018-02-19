@@ -41,6 +41,7 @@ library
                      , Sumikac.Conduit
                      , Sumikac.Types
                      , Sumikac.Types.EmsDeliveryCosts
+                     , Sumikac.Types.Description
                      , Sumikac.Types.Picasa
                      , Sumikac.Types.Weight
                      , Sumikac.Types.YenAmount

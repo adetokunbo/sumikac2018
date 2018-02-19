@@ -51,7 +51,7 @@ import           System.Directory
 import           System.FilePath
 
 import           Sumikac.Types
-
+import           Sumikac.Types.Description
 
 -- Env is an environment available to all processing pipelines.
 --

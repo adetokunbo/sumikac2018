@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-|
 Module      : Path.Default
 Description : Shared functions for manipulating paths and the filesystem
@@ -11,13 +12,16 @@ module Path.Default
     createDefaultDirIfMissing
   , defaultDirRel
   , defaultDir
+  , mkBasename
   )
 where
 
-import Control.Monad.IO.Class
-
-import           System.Directory (createDirectoryIfMissing, getHomeDirectory)
-import           System.FilePath  ((</>))
+import           Control.Monad.IO.Class
+import           Data.Monoid
+import           Data.Text              (Text, replace, unpack)
+import           System.Directory       (createDirectoryIfMissing,
+                                         getHomeDirectory)
+import           System.FilePath        ((</>))
 
 -- | The relative path of the root to the home directory.
 defaultDirRel :: FilePath
@@ -33,3 +37,7 @@ createDefaultDirIfMissing = do
   dir <- defaultDir
   liftIO $ createDirectoryIfMissing True dir
   return dir
+
+-- | Make files basename given its extension.
+mkBasename :: Text -> Text -> FilePath
+mkBasename ext = unpack . (<> ext) . replace "/" "-"
