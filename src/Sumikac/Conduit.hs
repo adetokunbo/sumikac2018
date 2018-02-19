@@ -52,6 +52,7 @@ import           System.FilePath
 
 import           Sumikac.Types
 import           Sumikac.Types.Description
+import           Sumikac.Types.ExchangeRates
 
 -- Env is an environment available to all processing pipelines.
 --

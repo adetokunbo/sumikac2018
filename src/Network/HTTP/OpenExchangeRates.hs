@@ -24,7 +24,7 @@ import           Network.HTTP.Simple
 import           System.Directory
 import           System.FilePath
 
-import           Sumikac.Types
+import           Sumikac.Types.ExchangeRates
 
 
 -- TODO: move apiId and URI to a config package
