@@ -40,11 +40,12 @@ library
                      , Path.Default
                      , Sumikac.Conduit
                      , Sumikac.Types
+                     , Sumikac.Types.Description
                      , Sumikac.Types.EmsDeliveryCosts
                      , Sumikac.Types.ExchangeRates
-                     , Sumikac.Types.Description
                      , Sumikac.Types.NamedDimensions
                      , Sumikac.Types.Picasa
+                     , Sumikac.Types.Product
                      , Sumikac.Types.Weight
                      , Sumikac.Types.YenAmount
 

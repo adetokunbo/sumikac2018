@@ -50,7 +50,7 @@ import qualified Data.Conduit.Text            as CT
 import           System.Directory
 import           System.FilePath
 
-import           Sumikac.Types
+import           Sumikac.Types.Product
 import           Sumikac.Types.Description
 import           Sumikac.Types.ExchangeRates
 
@@ -60,7 +60,6 @@ import           Sumikac.Types.ExchangeRates
 data Env = Env
   { productEnv :: FullProductEnv
   }
-
 
 -- | Load files that provide static configuration data.
 loadEnv
