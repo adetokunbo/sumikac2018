@@ -28,14 +28,12 @@ where
 import           Control.Applicative
 
 import           Data.Char                      (toUpper)
-import qualified Data.HashMap.Strict            as HM
 import           Data.List                      (drop)
 import           Data.Map.Strict                (Map)
 import qualified Data.Map.Strict                as Map
 import           Data.Text                      (Text)
 
 import           Data.Aeson
-import           Data.Aeson.Types
 import           Data.Scientific                as Sci
 
 import           GHC.Generics
@@ -43,6 +41,7 @@ import           GHC.Generics
 import           Path.Default
 import           Sumikac.Types.Description
 import           Sumikac.Types.EmsDeliveryCosts
+import           Sumikac.Types.NamedDimensions
 import           Sumikac.Types.Weight
 import           Sumikac.Types.YenAmount
 
@@ -160,32 +159,3 @@ instance FromJSON Product where
 instance ToJSON Product where
   toJSON = genericToJSON productOptions
   toEncoding = genericToEncoding productOptions
-
-data NamedDimension = NamedDimension
-  { _ndName  :: Text
-  , _ndValue :: Text
-  } deriving (Show)
-
-newtype NamedDimensions = NamedDimensions
-  { unNamedDimensions :: [NamedDimension]}
-  deriving (Show)
-
-instance FromJSON NamedDimensions where
-  parseJSON = parseNamedDimensions
-
-instance ToJSON NamedDimensions where
-  toJSON = namedDimensionsToJSON
-
-parseNamedDimensions :: Value -> Parser NamedDimensions
-parseNamedDimensions = withObject "manyDimensions" $ \o -> do
-  let mk (n, rawValue) = do
-        v <- parseJSON rawValue
-        return NamedDimension { _ndName = n, _ndValue = v}
-  inner <- mapM mk (HM.toList o)
-  return NamedDimensions { unNamedDimensions = inner}
-
-namedDimensionsToJSON :: NamedDimensions -> Value
-namedDimensionsToJSON = toJSON . HM.fromList . asList
-  where
-    asList = map toKeyValue . unNamedDimensions
-    toKeyValue (NamedDimension n v) = (n,  toJSON v)

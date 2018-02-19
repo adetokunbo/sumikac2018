@@ -43,6 +43,7 @@ library
                      , Sumikac.Types.EmsDeliveryCosts
                      , Sumikac.Types.ExchangeRates
                      , Sumikac.Types.Description
+                     , Sumikac.Types.NamedDimensions
                      , Sumikac.Types.Picasa
                      , Sumikac.Types.Weight
                      , Sumikac.Types.YenAmount
