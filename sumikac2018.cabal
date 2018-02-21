@@ -21,8 +21,13 @@ executable create-sumikac-site
   default-language:    Haskell2010
   build-depends:       aeson         >= 1.2.3
                      , base          >= 4.7 && < 5
-                     , sumikac2018
                      , bytestring    >= 0.10.8.2 && < 0.11
+                     , filepath      >= 1.4 && < 1.5
+                     , exceptions    >= 0.8
+                     , mtl           >= 2.2.1
+                     , resourcet     >= 1.1
+                     , sumikac2018
+                     , text          >= 1.2.2
 
 library
   default-language:    Haskell2010
@@ -69,8 +74,8 @@ library
                      , http-types    >= 0.9
                      , lens          >= 4.15.4
                      , lens-aeson    >= 1.0
-                     , network-uri   >= 2.6
                      , mtl           >= 2.2.1
+                     , network-uri   >= 2.6
                      , path          >= 0.6.1
                      , pretty-simple >= 2.0
                      , resourcet     >= 1.1.11

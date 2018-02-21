@@ -9,7 +9,7 @@ Stability   : experimental
 -}
 module Network.HTTP.EmsSiteScrape
   (
-    scrapeTo
+    scrapeEmsInfoTo
   )
 where
 
@@ -32,8 +32,8 @@ import           Text.Taggy.Lens
 import           Sumikac.Types.EmsDeliveryCosts
 
 -- | Scrapes the ems site and downloads the delivery costs to path.
-scrapeTo :: (MonadIO m) => FilePath -> m ()
-scrapeTo path = liftIO $ do
+scrapeEmsInfoTo :: (MonadIO m) => FilePath -> m ()
+scrapeEmsInfoTo path = liftIO $ do
   scraped <- toDeliveryCosts <$> get chargesURL
   case scraped of
     Left err -> putStrLn $ "Scrape failed: " ++ err

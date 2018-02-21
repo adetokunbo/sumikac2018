@@ -11,7 +11,7 @@ Stability   : experimental
 -}
 module Network.HTTP.OpenExchangeRates
   (
-    download
+    downloadRatesTo
   )
 
 where
@@ -35,8 +35,8 @@ apiURI :: String
 apiURI = "http://openexchangerates.org/api/latest.json?app_id=" ++ apiId
 
 -- | download the latest exchange rates and write them to a path.
-download :: FilePath -> IO ()
-download path = do
+downloadRatesTo :: FilePath -> IO ()
+downloadRatesTo path = do
   createDirectoryIfMissing True $ takeDirectory path
   req <- parseRequest apiURI
   resp :: Response FromUSD <- httpJSON req -- see Note httpJSON vs httpJSONEither

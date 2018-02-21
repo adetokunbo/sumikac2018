@@ -12,10 +12,8 @@ Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
 module Network.HTTP.Gogol.Picasa
-  ( main
-  , newDownloadEnv
-  , mkDownloadPipe
-  , DownloadEnv
+  (
+    getWebAlbums
   )
 where
 
@@ -48,37 +46,37 @@ import qualified Network.HTTP.Conduit         as HC
 import           Sumikac.Types.Picasa
 
 -- | Performs a download of the Web Album.
-main
+getWebAlbums
   :: (MonadBaseControl IO m, MonadCatch m, MonadIO m)
   => FilePath  -- ^ The directory where the downloaded info is stored
   -> Text      -- ^ The username whose images are downloaded
   -> m ()
-main dir user = newDownloadEnv dir user >>= runConduitRes . mkDownloadPipe
+getWebAlbums dir user = newSpec dir user >>= runConduitRes . mkDownloadPipe
 
 -- | Contains the specification for a WebAlbum download.
-data DownloadEnv a = DownloadEnv
+data Spec a = Spec
   { env  :: Env a    -- ^ Used to obtain Google authorization credentials
   , dir  :: FilePath -- ^ The directory where the downloaded info is stored
   , user :: Text    -- ^ The username whose images are downloaded
   }
 
 -- | Creates the specification of a Web Album download.
-newDownloadEnv
+newSpec
   :: (MonadIO m, MonadCatch m)
   => FilePath  -- ^ The directory where the downloaded info is stored
   -> Text      -- ^ The username whose images are downloaded
-  -> m (DownloadEnv '["https://picasaweb.google.com/data/"])
-newDownloadEnv dir user = do
+  -> m (Spec '["https://picasaweb.google.com/data/"])
+newSpec dir user = do
   env <- newEnv <&> (envScopes .~ picasaScope)
-  return $ DownloadEnv env dir user
+  return $ Spec env dir user
 
 -- | Constructs the conduit that performs the Web Album download.
 mkDownloadPipe
   :: (AllowScopes b, MonadCatch m, MonadResource m, MonadBaseControl IO m)
-  => DownloadEnv b -- ^ the specification of the download
+  => Spec b -- ^ the specification of the download
   -> ConduitM a c m ()
 mkDownloadPipe dEnv = do
-  let DownloadEnv{..} = dEnv
+  let Spec{..} = dEnv
       Env{..} = env
       saveWebImages = mkSaveWebImagesPipe dEnv
   req <- authorize (mkAlbumRequest user) _envStore _envLogger _envManager
@@ -93,10 +91,10 @@ decodeAlbum = awaitForever $ \b -> do
 
 mkSaveWebImagesPipe
   :: (AllowScopes a, MonadBaseControl IO m, MonadResource m, MonadCatch m)
-  => DownloadEnv a
+  => Spec a
   -> ConduitM WebAlbum o m ()
 mkSaveWebImagesPipe dEnv = do
-  let DownloadEnv{..} = dEnv
+  let Spec{..} = dEnv
       Env{..} = env
   awaitForever $ \ae -> do
     let outPath = dir </> webAlbumBasename ae

@@ -80,7 +80,7 @@ loadEnv src = liftIO $ do
 -- | Run the pipes that regenerate the site.
 runAll
   :: (MonadIO m, MonadThrow m, MonadBaseControl IO m)
-  => FilePath -- ^ the source directory when the files are download to
+  => FilePath -- ^ the source directory containing the downloaded files
   -> FilePath -- ^ the destination directory to where the files are saved
   -> m ()
 runAll src dst = do
@@ -89,7 +89,7 @@ runAll src dst = do
 
   env <- loadEnv src
   case env of
-    Left e -> throwM e -- could not load the currencies file, fail
+    Left e -> throwM e -- could not load files in the environment
     Right env' -> do
       runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
       runReaderT (runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst) env'
