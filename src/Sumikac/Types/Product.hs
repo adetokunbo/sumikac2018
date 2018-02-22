@@ -44,6 +44,7 @@ import           Sumikac.Types.EmsDeliveryCosts
 import           Sumikac.Types.NamedDimensions
 import           Sumikac.Types.Weight
 import           Sumikac.Types.YenAmount
+import           Sumikac.Types.Picasa
 
 -- In Asuta Wan, there were 'Made by' which should have been supplier
 -- In Bamboo_vase, there is an OriginalName; I'm not sure why
@@ -54,15 +55,19 @@ fullProductBasename =
   mkBasename "-complete.yaml" .  _fdInternalName . _fpFullDesc
 
 -- | Smart constructor for creating a full product
-fullProduct :: Product -> FullProductEnv -> FullDesc -> FullProduct
-fullProduct p fpe@(FullProductEnv { _fpeRates, _fpeCosts }) =
+fullProduct
+  :: Product
+  -> FullProductEnv
+  -> [ImageGroup]
+  -> FullDesc
+  -> FullProduct
+fullProduct p fpe@(FullProductEnv { _fpeRates, _fpeCosts }) imgs =
   let
     dc = allDeliveryCosts fpe p
-
     mkPrices :: RealFloat a => Product -> Map k a -> Map k Scientific
     mkPrices y = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral $ _price y))
   in
-    FullProduct p dc $ mkPrices p _fpeRates
+    FullProduct p dc (mkPrices p _fpeRates) imgs
 
 -- | Context used when creating a 'FullProduct' with a product
 data FullProductEnv = FullProductEnv
@@ -95,6 +100,7 @@ data FullProduct = FullProduct
   { _fpProduct       :: Product
   , _fpDeliveryCosts :: Maybe (Map EmsZone (Map Text Scientific))
   , _fpAllPrices     :: Map Text Scientific
+  , _fpWebImages     :: [ImageGroup]
   , _fpFullDesc      :: FullDesc
   } deriving (Show, Generic)
 

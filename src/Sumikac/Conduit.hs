@@ -166,25 +166,27 @@ mkProductPipe d = ConvertPipeline
     fpPath fp = (d </> fullProductBasename fp, encode fp)
     handleFullProduct = withDumpParseException pipeToFullProduct $ CC.map fpPath
 
--- | Derive the path of the descriptor Yaml from that of the product Yaml.
-toDescPath :: FilePath -> FilePath
-toDescPath f =
-  let ext = takeExtension f
-  in addExtension (dropExtension f ++ "-descs") ext
+-- | Derive a path from another one by replacing the suffix of its basename.
+replaceBaseSuffix :: String -> FilePath -> FilePath
+replaceBaseSuffix suffix f =
+  addExtension (dropExtension f ++ suffix) $ takeExtension f
 
 pipeToFullProduct
-  :: (MonadThrow m, MonadReader Env m, MonadResource m, MonadBaseControl IO m)
+  :: (MonadThrow m,
+      MonadReader Env m,
+      MonadResource m,
+      MonadBaseControl IO m)
   => ConduitM (FilePath, Product) (Either ParseException FullProduct) m ()
 pipeToFullProduct =
   awaitForever $ \(path, p) -> do
     Env { productEnv } <- ask
-    let descPath = toDescPath path
-        decodePlus (prod, content) =
-          fullProduct prod productEnv <$> decodeEither' content
-        handleNotFound e = yield $ Left $ OtherParseException e
-    (CC.sourceFile (descPath)
-      .| CC.map ((,) p)
-      .| CC.map decodePlus) `catchC` handleNotFound
+    let descPath = replaceBaseSuffix "-descs" path
+        imgsPath = replaceBaseSuffix "-web-images" path
+        handleOthers e = yield . Left . OtherParseException $ e
+    handleC handleOthers $ do
+      imgs <- liftIO $ decodeFileEither imgsPath
+      desc <- liftIO $ decodeFileEither descPath
+      yield $ fullProduct p productEnv <$> imgs <*> desc
 
 -- | Save the content to the indicated path.
 --
