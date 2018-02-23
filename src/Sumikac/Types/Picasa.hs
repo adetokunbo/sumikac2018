@@ -1,5 +1,9 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE TemplateHaskell        #-}
 
 {-|
 Module      : Sumikac.Types.Picasa
@@ -13,23 +17,30 @@ Stability   : experimental
 module Sumikac.Types.Picasa
     (
       WebAlbum(..)
+    , WebImage(..)
     , ImageGroup(..)
     , WebAlbumException
     , webAlbumBasename
     , decodeWebAlbums
     , decodeImageGroups
     , isSumikaCrafts
+
+    -- * Lenses for ImageGroup
+    , content
+    , thumbnails
     ) where
 
 
-import qualified Control.Exception   as Exc
-import           Data.Char    (toLower, toUpper)
-import           Data.List    (drop)
-import Data.Monoid
-import           Data.Text    (Text, isPrefixOf, replace, unpack)
+import qualified Control.Exception    as Exc
 import           Data.ByteString.Lazy (ByteString)
+import           Data.Char            (toLower, toUpper)
+import           Data.List            (drop)
+import           Data.List.NonEmpty   (NonEmpty)
+import           Data.Monoid
+import           Data.Text            (Text, isPrefixOf, replace, unpack)
 
 import           Data.Aeson
+import           Lens.Micro.Platform
 
 import           GHC.Generics
 
@@ -45,7 +56,7 @@ instance Exc.Exception WebAlbumException
 -- Album JSON response.
 decodeWebAlbums :: ByteString -> Either WebAlbumException [WebAlbum]
 decodeWebAlbums b = case eitherDecode b of
-    Left s -> Left $ WebAlbumException s
+    Left s               -> Left $ WebAlbumException s
     Right (RawAlbums xs) -> Right $ map unWebAlbum xs
 
 -- | Filter albums that indicates where albums are SumikaCrafts image albums
@@ -105,26 +116,6 @@ instance FromJSON RawAlbums where
     entries <- feed .: "entry"
     return $ RawAlbums entries
 
--- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
--- Photo JSON response.
-decodeImageGroups :: ByteString -> Either WebAlbumException [ImageGroup]
-decodeImageGroups b =  case eitherDecode b of
-    Left s -> Left $ WebAlbumException s
-    Right (RawImageGroups imgs) -> Right $ map unImageGroup imgs
-
--- | A group of 'WebImage's related to each single photo in a Picasa album.
-data ImageGroup = ImageGroup
-  { _poContent   :: [WebImage]
-  , _poThumbnail :: [WebImage]
-  } deriving (Show, Generic)
-
-instance FromJSON ImageGroup where
-  parseJSON = genericParseJSON drop3Options
-
-instance ToJSON ImageGroup where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
-
 -- | The description of a direct image link accessible from Picasa web albums.
 data WebImage = WebImage
   { _wiUrl    :: Text
@@ -138,36 +129,6 @@ instance FromJSON WebImage where
 instance ToJSON WebImage where
   toJSON = genericToJSON webImageOptions
   toEncoding = genericToEncoding webImageOptions
-
--- | Same as 'ImageGroup' wrapped in a newtype to allow it to be parsed using
--- directl from the complex Picasa API json.
-newtype RawImageGroup = RawImageGroup {unImageGroup :: ImageGroup}
-  deriving (Show)
-
-instance FromJSON RawImageGroup where
-  parseJSON = withObject "entry" $ \o -> do
-    top <- o .: "media$group"
-    _poContent <- top .: "media$content"
-    _poThumbnail <- top .: "media$thumbnail"
-    return $ RawImageGroup $ ImageGroup _poContent _poThumbnail
-
--- | A list of 'RawImageGroup' parsed directly from Picasa API JSON.
-data RawImageGroups = RawImageGroups [RawImageGroup]
-  deriving (Show)
-
-instance FromJSON RawImageGroups where
-  parseJSON = withObject "picasa photo gdata" $ \o -> do
-    feed <- o .: "feed"
-    entries <- feed .: "entry"
-    return $ RawImageGroups entries
-
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
 
 webImageOptions :: Options
 webImageOptions = defaultOptions
@@ -185,3 +146,55 @@ transformFst f (x:xs) = (f x):xs
 -- | Make files basename given its extension.
 mkBasename :: Text -> Text -> FilePath
 mkBasename ext = unpack . (<> ext) . replace "/" "-"
+
+drop3Options :: Options
+drop3Options = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
+  where
+    modifyFields = transformFst toUpper . drop 3
+
+-- | A group of 'WebImage's related to each single photo in a Picasa album.
+data ImageGroup = ImageGroup
+  { _poContent    :: NonEmpty WebImage
+  , _poThumbnails :: NonEmpty WebImage
+  } deriving (Show, Generic)
+
+makeLensesWith abbreviatedFields ''ImageGroup
+
+instance FromJSON ImageGroup where
+  parseJSON = genericParseJSON drop3Options
+
+instance ToJSON ImageGroup where
+  toJSON = genericToJSON drop3Options
+  toEncoding = genericToEncoding drop3Options
+
+-- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
+-- Photo JSON response.
+decodeImageGroups :: ByteString -> Either WebAlbumException [ImageGroup]
+decodeImageGroups b =  case eitherDecode b of
+    Left s                      -> Left $ WebAlbumException s
+    Right (RawImageGroups imgs) -> Right $ map unImageGroup imgs
+
+-- | Same as 'ImageGroup' wrapped in a newtype to allow it to be parsed using
+-- directl from the complex Picasa API json.
+newtype RawImageGroup = RawImageGroup {unImageGroup :: ImageGroup}
+  deriving (Show)
+
+instance FromJSON RawImageGroup where
+  parseJSON = withObject "entry" $ \o -> do
+    top <- o .: "media$group"
+    _poContent <- top .: "media$content"
+    _poThumbnails <- top .: "media$thumbnail"
+    return $ RawImageGroup $ ImageGroup _poContent _poThumbnails
+
+-- | A list of 'RawImageGroup' parsed directly from Picasa API JSON.
+data RawImageGroups = RawImageGroups [RawImageGroup]
+  deriving (Show)
+
+instance FromJSON RawImageGroups where
+  parseJSON = withObject "picasa photo gdata" $ \o -> do
+    feed <- o .: "feed"
+    entries <- feed .: "entry"
+    return $ RawImageGroups entries

@@ -14,16 +14,16 @@ module Sumikac.Conduit
   (
   -- * Yaml Parsing
     ConvertPipeline(..)
-  , convert1File
-  , convertFilesIn
-  , pipeDecoded
-  , pipeEitherDecoded
   , mkProductPipe
   , mkLitDescPipe
+  , convertFilesIn
   , runAll
 
   -- * Useful functions
+  , pipeDecoded
+  , pipeEitherDecoded
   , groupBySep
+  , handleEither
   )
 where
 
@@ -34,6 +34,9 @@ import           Data.ByteString              (ByteString)
 import qualified Data.ByteString.Char8        as BS
 import           Data.Monoid                  ((<>))
 import           Data.Text                    (Text)
+import qualified Data.Text as Text
+import           Data.List               (isSuffixOf)
+import           Data.List.NonEmpty      (NonEmpty)
 
 import           Data.Aeson                   (FromJSON (..))
 import           Data.Yaml                    (ParseException (..), decode,
@@ -56,6 +59,7 @@ import           Sumikac.Types
 -- Initially it just contains the currencies.
 data Env = Env
   { productEnv :: FullProductEnv
+  , categories :: NonEmpty Text
   }
 
 -- | Load files that provide static configuration data.
@@ -65,17 +69,23 @@ loadEnv
   -> m (Either ParseException Env)
 loadEnv src = liftIO $ do
     let ratesPath = src </> "latest_rates.yaml"
+        categoriesPath = src </> "site_categories.yaml"
         currenciesPath = src </> "site_currencies.yaml"
         deliveryCostPath = src </> "ems_delivery_costs.yaml"
     fromUSD <- decodeFileEither ratesPath
+    categories' <- decodeFileEither categoriesPath
     currencies <- decodeFileEither currenciesPath
     emsRates <- decodeFileEither deliveryCostPath
     return $ do
+      categories <- categories'
       currencies' <- currencies
       fromUSD' <- fromUSD
       emsRates' <- emsRates
       fromYen <- mkYenRates currencies' fromUSD'
-      return $ Env $ FullProductEnv fromYen emsRates'
+      return $ Env
+        { productEnv = FullProductEnv fromYen emsRates'
+        , categories
+        }
 
 -- | Run the pipes that regenerate the site.
 runAll
@@ -91,8 +101,44 @@ runAll src dst = do
   case env of
     Left e -> throwM e -- could not load files in the environment
     Right env' -> do
+      let withEnv = flip runReaderT env'
       runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-      runReaderT (runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst) env'
+      withEnv $ runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst
+      runConduitRes $ collectCategories dst $ categories env'
+
+collectCategories
+  :: (MonadIO m, MonadResource m)
+  => FilePath -> NonEmpty Text -> ConduitM i o m ()
+collectCategories src cats =
+  CC.yieldMany cats .| awaitForever (collectCategory src)
+
+-- | A pipeline that creates a Category.
+--
+-- loop through all the complete product files in the product folder
+--
+-- if the file is the given category, collect its id, full name, and initial thumbnail
+collectCategory
+  :: (MonadIO m, MonadResource m)
+  => FilePath -> Text -> ConduitM i o m ()
+collectCategory src c = CF.sourceDirectory src
+                        .| filter'
+                        .| awaitForever go
+                        .| handleEither dumpParseException decode' collect
+  where
+    filter' = CC.filter (isSuffixOf "-complete.yaml")
+    collect = do
+      accum <- findCategoryProducts .| CC.sinkList
+      case (length accum) of
+        0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
+        _ -> yield (encode accum) .| CC.sinkFile dst
+    decode' = CC.map decodeEither'
+    dst = src </> (Text.unpack c) <> "-category.yaml"
+    findCategoryProducts = CL.mapMaybe $ categoryProduct c
+
+    go f = do
+      let msg = "Scanning for products in category: " <> c <> " in " <> Text.pack f
+      liftIO $ putStrLn "" >> print msg
+      CC.sourceFile f
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --
@@ -111,22 +157,9 @@ convertFilesIn srcDir pipe =
   .| awaitForever go
   where
     go f = do
+      let ConvertPipeline{cpParse, cpGo, cpError} = pipe
       liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
-      convert1File (CC.sourceFile f) pipe
-
--- | Processes a target yaml file using a pipeline that places output in dstDir.
---
--- E.g, to process a single file product file
--- @
---   runConduitRes $ convert1File dstDir source $ mkProductPipe dstDir
--- @
-convert1File
-  :: (MonadIO m)
-  => ConduitM i FileContents m () -- ^ a producer of the contents of yaml files
-  -> ConvertPipeline j o m -- ^ a pipeline that converts YamlDocs into j
-  -> ConduitM i o m ()
-convert1File source ConvertPipeline{cpParse, cpGo, cpError} =
-  source .| handleEither cpError cpParse cpGo
+      CC.sourceFile f .| handleEither cpError cpParse cpGo
 
 -- FileContents are the entire contents for reading a file
 type FileContents = ByteString
@@ -195,10 +228,10 @@ pipeToFullProduct =
 save
   :: (MonadResource m)
   => ConduitM (FilePath, FileContents) (FilePath, FileContents) m ()
-save = awaitForever $ \(path, content) -> do
+save = awaitForever $ \(path, bytez) -> do
   liftIO $ createDirectoryIfMissing True $ takeDirectory path
-  yield content .| CC.sinkFile path
-  yield (path, content)
+  yield bytez .| CC.sinkFile path
+  yield (path, bytez)
 
 -- | Generalize handling errors for Conduits that produce Either.
 handleEither

@@ -1,7 +1,11 @@
 {-# LANGUAGE DeriveGeneric     #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-|
 Module      : Sumikac.Types.Description
 Description : Types that model the description of products.
@@ -12,7 +16,7 @@ Stability   : experimental
 -}
 module Sumikac.Types.Description
   (
-    -- * Product description
+  -- * Product description
   DescAccum(..)
   , FullDesc(..)
   , LitDesc(..)
@@ -22,6 +26,13 @@ module Sumikac.Types.Description
   , asFullDescs
   , descAccum
   , fullDescBasename
+
+  -- * Lense on FullDesc
+  , description
+  , links
+  , otherSections
+  , overview
+  , productName
 
   )
 where
@@ -38,6 +49,7 @@ import           Data.Monoid         ((<>))
 import           Data.Text           (Text)
 
 import           Data.Aeson
+import           Lens.Micro.Platform
 
 import           GHC.Generics
 
@@ -64,6 +76,16 @@ instance FromJSON LitDesc where
 instance ToJSON LitDesc where
   toJSON = genericToJSON ldOptions
   toEncoding = genericToEncoding ldOptions
+
+drop3Options :: Options
+drop3Options = defaultOptions
+  { fieldLabelModifier = modifyFields
+  , omitNothingFields = True
+  }
+  where
+    modifyFields = transformFst toUpper . drop 3
+    transformFst _ []     = []
+    transformFst f (x:xs) = (f x):xs
 
 -- | ShortDesc are a minimal description of the product, along with any links
 -- that might occur in its paragraphs.
@@ -157,17 +179,19 @@ addLitDesc (DescAccum cd@CommonDesc {..} solos) (Short sd@ShortDesc {..}) =
 
 -- | The basename of the path to store the encoded 'FullDesc'.
 fullDescBasename :: FullDesc -> FilePath
-fullDescBasename = mkBasename "-descs.yaml" .  _fdInternalName
+fullDescBasename = mkBasename "-descs.yaml" .  fdInternalName
 
 -- | A 'FullDesc' contains contains all relevant information about the product.
 data FullDesc = FullDesc
-  { _fdInternalName  :: Text
+  { fdInternalName  :: Text
   , _fdProductName   :: Text
   , _fdDescription   :: Maybe Text
   , _fdLinks         :: Maybe [Text]
   , _fdOverview      :: Maybe Text
   , _fdOtherSections :: Map Label Text
   } deriving (Show, Generic)
+
+makeLensesWith abbreviatedFields ''FullDesc
 
 instance FromJSON FullDesc where
   parseJSON = genericParseJSON drop3Options
@@ -189,20 +213,10 @@ asFullDescs (DescAccum CommonDesc {..} solos) =
           others k _ = k /= "Description" && k /= "Overview"
       in
         Just FullDesc
-        { _fdInternalName = _sdInternalName
+        { fdInternalName = _sdInternalName
         , _fdProductName = _sdProductName
         , _fdDescription = Map.lookup "Description" sections'
         , _fdLinks = cdLinks
         , _fdOverview = Map.lookup "Overview" sections'
         , _fdOtherSections = filterOthers sections'
         }
-
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
-    transformFst _ []     = []
-    transformFst f (x:xs) = (f x):xs
