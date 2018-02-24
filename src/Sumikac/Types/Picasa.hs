@@ -33,13 +33,12 @@ module Sumikac.Types.Picasa
 
 import qualified Control.Exception    as Exc
 import           Data.ByteString.Lazy (ByteString)
-import           Data.Char            (toLower, toUpper)
-import           Data.List            (drop)
 import           Data.List.NonEmpty   (NonEmpty)
 import           Data.Monoid
 import           Data.Text            (Text, isPrefixOf, replace, unpack)
 
 import           Data.Aeson
+import           Data.Aeson.Casing
 import           Lens.Micro.Platform
 
 import           GHC.Generics
@@ -83,11 +82,11 @@ data WebAlbum = WebAlbum
   } deriving (Show, Generic)
 
 instance FromJSON WebAlbum where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON $ aesonPrefix pascalCase
 
 instance ToJSON WebAlbum where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON $ aesonPrefix pascalCase
+  toEncoding = genericToEncoding $ aesonPrefix pascalCase
 
 -- | Same as 'WebAlbum' wrapped in a newtype to allow it parsed using the more
 -- complex parser required for the Picasa API json output.
@@ -124,36 +123,15 @@ data WebImage = WebImage
   } deriving (Show, Generic)
 
 instance FromJSON WebImage where
-  parseJSON = genericParseJSON webImageOptions
+  parseJSON = genericParseJSON $ aesonPrefix camelCase
 
 instance ToJSON WebImage where
-  toJSON = genericToJSON webImageOptions
-  toEncoding = genericToEncoding webImageOptions
-
-webImageOptions :: Options
-webImageOptions = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toLower . drop 3
-
--- | Transform first letter of 'String' using the given function.
-transformFst :: (Char -> Char) -> String -> String
-transformFst _ []     = []
-transformFst f (x:xs) = (f x):xs
+  toJSON = genericToJSON $ aesonPrefix camelCase
+  toEncoding = genericToEncoding $ aesonPrefix camelCase
 
 -- | Make files basename given its extension.
 mkBasename :: Text -> Text -> FilePath
 mkBasename ext = unpack . (<> ext) . replace "/" "-"
-
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
 
 -- | A group of 'WebImage's related to each single photo in a Picasa album.
 data ImageGroup = ImageGroup
@@ -164,11 +142,11 @@ data ImageGroup = ImageGroup
 makeLensesWith abbreviatedFields ''ImageGroup
 
 instance FromJSON ImageGroup where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON $ aesonPrefix pascalCase
 
 instance ToJSON ImageGroup where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON $ aesonPrefix pascalCase
+  toEncoding = genericToEncoding $ aesonPrefix pascalCase
 
 -- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
 -- Photo JSON response.

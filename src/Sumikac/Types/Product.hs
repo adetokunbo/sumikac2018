@@ -42,8 +42,6 @@ where
 
 import           Control.Applicative
 
-import           Data.Char                      (toUpper)
-import           Data.List                      (drop)
 import           Data.List.NonEmpty             (NonEmpty)
 import qualified Data.List.NonEmpty             as NonEmpty
 import           Data.Map.Strict                (Map)
@@ -51,6 +49,7 @@ import qualified Data.Map.Strict                as Map
 import           Data.Text                      (Text)
 
 import           Data.Aeson
+import           Data.Aeson.Casing
 import           Data.Scientific                as Sci
 import           Lens.Micro.Platform
 
@@ -97,13 +96,7 @@ makeLensesFor [
   ] ''Product
 
 productOptions :: Options
-productOptions = defaultOptions
-  { fieldLabelModifier = transformFst toUpper . drop 1
-  , omitNothingFields = True
-  }
-  where
-    transformFst _ []     = []
-    transformFst f (x:xs) = (f x):xs
+productOptions =  (aesonDrop 1 pascalCase) { omitNothingFields = True }
 
 instance FromJSON Product where
   parseJSON = genericParseJSON productOptions
@@ -169,26 +162,17 @@ fullProductBasename :: FullProduct-> FilePath
 fullProductBasename fp = mkBasename "-complete.yaml" (fp ^. core . internalName)
 
 instance FromJSON FullProduct where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON $ aesonPrefix pascalCase
 
 instance ToJSON FullProduct where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
-
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
-    transformFst _ []     = []
-    transformFst f (x:xs) = (f x):xs
+  toJSON = genericToJSON $ aesonPrefix pascalCase
+  toEncoding = genericToEncoding $ aesonPrefix pascalCase
 
 -- | The basename of the path to store the encoded 'Product'.
 productBasename :: Product -> FilePath
 productBasename = mkBasename ".yaml" . _internalName
 
+-- | Combine a category with 'FullProduct' to get a 'CategoryProduct'.
 categoryProduct :: Text -> FullProduct -> Maybe CategoryProduct
 categoryProduct c fp
   | c `notElem` fp ^. core . categories = Nothing
@@ -201,6 +185,8 @@ categoryProduct c fp
     }
     where ig = NonEmpty.head $ fp ^. imageGroups
 
+-- | The fragment of the data in a FullProduct that's displayed on a category
+-- page.
 data CategoryProduct = CategoryProduct
   { _cpInternalName :: Text
   , _cpProductName  :: Text
@@ -209,8 +195,8 @@ data CategoryProduct = CategoryProduct
   } deriving (Show, Generic)
 
 instance FromJSON CategoryProduct where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON $ aesonPrefix pascalCase
 
 instance ToJSON CategoryProduct where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON $ aesonPrefix pascalCase
+  toEncoding = genericToEncoding $ aesonPrefix pascalCase

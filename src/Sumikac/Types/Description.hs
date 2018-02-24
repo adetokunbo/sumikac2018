@@ -39,9 +39,7 @@ where
 
 import           Control.Applicative
 
-import           Data.Char           (toUpper)
 import           Data.Foldable       (foldl')
-import           Data.List           (drop)
 import           Data.Map.Strict     (Map)
 import qualified Data.Map.Strict     as Map
 import           Data.Maybe
@@ -49,12 +47,12 @@ import           Data.Monoid         ((<>))
 import           Data.Text           (Text)
 
 import           Data.Aeson
+import           Data.Aeson.Casing
 import           Lens.Micro.Platform
 
 import           GHC.Generics
 
 import           Path.Default
-
 
 -- | LitDesc models the literal descripion Yaml as two distinct data formats
 --
@@ -64,28 +62,15 @@ data LitDesc
   | Short ShortDesc
   deriving (Show, Generic)
 
-ldOptions :: Options
-ldOptions = defaultOptions
-  { sumEncoding = UntaggedValue
-  , omitNothingFields = True
-  }
-
 instance FromJSON LitDesc where
-  parseJSON = genericParseJSON ldOptions
+  parseJSON = genericParseJSON defaultOptions {sumEncoding = UntaggedValue }
 
 instance ToJSON LitDesc where
-  toJSON = genericToJSON ldOptions
-  toEncoding = genericToEncoding ldOptions
+  toJSON = genericToJSON defaultOptions {sumEncoding = UntaggedValue }
+  toEncoding = genericToEncoding defaultOptions {sumEncoding = UntaggedValue }
 
-drop3Options :: Options
-drop3Options = defaultOptions
-  { fieldLabelModifier = modifyFields
-  , omitNothingFields = True
-  }
-  where
-    modifyFields = transformFst toUpper . drop 3
-    transformFst _ []     = []
-    transformFst f (x:xs) = (f x):xs
+ourOptions :: Options
+ourOptions = (aesonPrefix pascalCase) { omitNothingFields = True }
 
 -- | ShortDesc are a minimal description of the product, along with any links
 -- that might occur in its paragraphs.
@@ -96,11 +81,11 @@ data ShortDesc = ShortDesc
   } deriving (Show, Generic)
 
 instance FromJSON ShortDesc where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON ourOptions
 
 instance ToJSON ShortDesc where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON ourOptions
+  toEncoding = genericToEncoding ourOptions
 
 -- | LabelledBlock holds text for display under a given heading.
 --
@@ -112,11 +97,11 @@ data LabelledBlock = LabelledBlock
   } deriving (Show, Generic)
 
 instance FromJSON LabelledBlock where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON ourOptions
 
 instance ToJSON LabelledBlock where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON ourOptions
+  toEncoding = genericToEncoding ourOptions
 
 -- The Label names and ProductIds are both 'Text' values
 type Label = Text
@@ -135,7 +120,8 @@ data CommonDesc = CommonDesc
 -- | SoloDesc contains description data that is specific to a product.
 data SoloDesc = SoloDesc (Maybe ShortDesc) Sections
 
--- | DescAccum contains both the shared description and all the solo product descriptions.
+-- | DescAccum contains both the shared description and all the solo product
+-- descriptions.
 data DescAccum = DescAccum CommonDesc (Map ProductId SoloDesc)
 
 -- | A descAccum with nothing added to it.
@@ -194,11 +180,11 @@ data FullDesc = FullDesc
 makeLensesWith abbreviatedFields ''FullDesc
 
 instance FromJSON FullDesc where
-  parseJSON = genericParseJSON drop3Options
+  parseJSON = genericParseJSON ourOptions
 
 instance ToJSON FullDesc where
-  toJSON = genericToJSON drop3Options
-  toEncoding = genericToEncoding drop3Options
+  toJSON = genericToJSON ourOptions
+  toEncoding = genericToEncoding ourOptions
 
 -- | Unfolds a 'DescAccum' into a list of 'FullDesc'.
 asFullDescs :: DescAccum -> [FullDesc]

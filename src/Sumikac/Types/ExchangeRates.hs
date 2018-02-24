@@ -13,13 +13,12 @@ module Sumikac.Types.ExchangeRates where
 
 import qualified Control.Exception as Exc
 
-import           Data.Char         (toLower)
-import           Data.List         (drop)
 import           Data.Map.Strict   (Map)
 import qualified Data.Map.Strict   as Map
 import           Data.Text         (Text)
 
 import           Data.Aeson
+import           Data.Aeson.Casing
 import           Data.Scientific   as Sci
 import           Data.Yaml         (ParseException (..))
 
@@ -59,18 +58,9 @@ instance Show NoYenRates where
 
 instance Exc.Exception NoYenRates
 
-currenciesOptions :: Options
-currenciesOptions = defaultOptions
-  { fieldLabelModifier = transformFst toLower . drop 3
-  , omitNothingFields = True
-  }
-  where
-    transformFst _ []     = []
-    transformFst f (x:xs) = (f x):xs
-
 instance FromJSON FromUSD where
-  parseJSON = genericParseJSON currenciesOptions
+  parseJSON = genericParseJSON $ aesonPrefix camelCase
 
 instance ToJSON FromUSD where
-  toJSON = genericToJSON currenciesOptions
-  toEncoding = genericToEncoding currenciesOptions
+  toJSON = genericToJSON $ aesonPrefix camelCase
+  toEncoding = genericToEncoding $ aesonPrefix camelCase
