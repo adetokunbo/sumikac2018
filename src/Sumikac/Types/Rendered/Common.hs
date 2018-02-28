@@ -22,7 +22,7 @@ module Sumikac.Types.Rendered.Common
   , updateCategories
   , updateCategoryList
   , updatePageCurrenciesJson
-x  )
+  )
 where
 
 import qualified Data.ByteString.Lazy     as LBS
@@ -56,7 +56,6 @@ instance ToJSON Head where
 data JsonObjects = JsonObjects
   { _joCurrencies   :: Maybe Text
   , _joCategories   :: Maybe Text
-  , joProductImages :: Maybe Text
   , joProduct       :: Maybe Text
   } deriving (Show, Generic)
 
@@ -144,7 +143,6 @@ defaultBasePage = BasePage
     { _joCurrencies = Nothing
     , _joCategories = Nothing
     , joProduct = Nothing
-    , joProductImages = Nothing
     }
   }
 
