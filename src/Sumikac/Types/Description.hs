@@ -1,11 +1,11 @@
-{-# LANGUAGE DeriveGeneric     #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE NamedFieldPuns    #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric          #-}
+{-# LANGUAGE FlexibleInstances      #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE NamedFieldPuns         #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE RecordWildCards        #-}
+{-# LANGUAGE TemplateHaskell        #-}
 {-|
 Module      : Sumikac.Types.Description
 Description : Types that model the description of products.
@@ -169,7 +169,7 @@ fullDescBasename = mkBasename "-descs.yaml" .  fdInternalName
 
 -- | A 'FullDesc' contains contains all relevant information about the product.
 data FullDesc = FullDesc
-  { fdInternalName  :: Text
+  { fdInternalName   :: Text
   , _fdProductName   :: Text
   , _fdDescription   :: Maybe Text
   , _fdLinks         :: Maybe [Text]

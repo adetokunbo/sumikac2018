@@ -53,13 +53,14 @@ import           System.Directory
 import           System.FilePath
 
 import           Sumikac.Types
+import           Sumikac.Types.Rendered.CategoryPage
 
 -- Env is an environment available to all processing pipelines.
 --
 -- Initially it just contains the currencies.
 data Env = Env
   { productEnv :: FullProductEnv
-  , categories :: NonEmpty Text
+  , knownCategories :: NonEmpty Text
   }
 
 -- | Load files that provide static configuration data.
@@ -77,14 +78,14 @@ loadEnv src = liftIO $ do
     currencies <- decodeFileEither currenciesPath
     emsRates <- decodeFileEither deliveryCostPath
     return $ do
-      categories <- categories'
+      knownCategories <- categories'
       currencies' <- currencies
       fromUSD' <- fromUSD
       emsRates' <- emsRates
       fromYen <- mkYenRates currencies' fromUSD'
       return $ Env
         { productEnv = FullProductEnv fromYen emsRates'
-        , categories
+        , knownCategories
         }
 
 -- | Run the pipes that regenerate the site.
@@ -104,7 +105,7 @@ runAll src dst = do
       let withEnv = flip runReaderT env'
       runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
       withEnv $ runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst
-      runConduitRes $ collectCategories dst $ categories env'
+      runConduitRes $ collectCategories dst $ knownCategories env'
 
 collectCategories
   :: (MonadIO m, MonadResource m)
@@ -130,7 +131,7 @@ collectCategory src c = CF.sourceDirectory src
       accum <- findCategoryProducts .| CC.sinkList
       case (length accum) of
         0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
-        _ -> yield (encode accum) .| CC.sinkFile dst
+        _ -> yield (encode $ mkCategoryPage 4 accum) .| CC.sinkFile dst
     decode' = CC.map decodeEither'
     dst = src </> (Text.unpack c) <> "-category.yaml"
     findCategoryProducts = CL.mapMaybe $ categoryProduct c

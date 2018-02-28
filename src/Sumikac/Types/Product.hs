@@ -34,16 +34,15 @@ module Sumikac.Types.Product
   , Product(..)
   , productBasename
 
-  -- * Products as used in Category Pages
-  , CategoryProduct(..)
-  , categoryProduct
+  -- * Lenses for Product
+  , internalName
+  , categories
   )
 where
 
 import           Control.Applicative
 
-import           Data.List.NonEmpty             (NonEmpty)
-import qualified Data.List.NonEmpty             as NonEmpty
+import           Data.List.NonEmpty             (NonEmpty(..))
 import           Data.Map.Strict                (Map)
 import qualified Data.Map.Strict                as Map
 import           Data.Text                      (Text)
@@ -53,7 +52,8 @@ import           Data.Aeson.Casing
 import           Data.Scientific                as Sci
 import           Lens.Micro.Platform
 
-import           GHC.Generics
+-- Hide (to) as it conflicts with Lens.Micro.Platform
+import           GHC.Generics                   hiding (to)
 
 import           Path.Default
 import           Sumikac.Types.Description
@@ -171,32 +171,3 @@ instance ToJSON FullProduct where
 -- | The basename of the path to store the encoded 'Product'.
 productBasename :: Product -> FilePath
 productBasename = mkBasename ".yaml" . _internalName
-
--- | Combine a category with 'FullProduct' to get a 'CategoryProduct'.
-categoryProduct :: Text -> FullProduct -> Maybe CategoryProduct
-categoryProduct c fp
-  | c `notElem` fp ^. core . categories = Nothing
-  | otherwise =
-    Just CategoryProduct
-    { _cpInternalName = fp ^. core . internalName
-    , _cpProductName = fp ^. fullDesc . productName
-    , _cpGalleryImage = NonEmpty.head $ ig ^. content
-    , _cpThumbnail = NonEmpty.head $ ig ^. thumbnails
-    }
-    where ig = NonEmpty.head $ fp ^. imageGroups
-
--- | The fragment of the data in a FullProduct that's displayed on a category
--- page.
-data CategoryProduct = CategoryProduct
-  { _cpInternalName :: Text
-  , _cpProductName  :: Text
-  , _cpGalleryImage :: WebImage
-  , _cpThumbnail    :: WebImage
-  } deriving (Show, Generic)
-
-instance FromJSON CategoryProduct where
-  parseJSON = genericParseJSON $ aesonPrefix pascalCase
-
-instance ToJSON CategoryProduct where
-  toJSON = genericToJSON $ aesonPrefix pascalCase
-  toEncoding = genericToEncoding $ aesonPrefix pascalCase
