@@ -131,7 +131,7 @@ collectCategory src c = CF.sourceDirectory src
       accum <- findCategoryProducts .| CC.sinkList
       case (length accum) of
         0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
-        _ -> yield (encode $ mkCategoryPage 4 accum) .| CC.sinkFile dst
+        _ -> yield (encode $ mkCategoryPage c 4 accum) .| CC.sinkFile dst
     decode' = CC.map decodeEither'
     dst = src </> (Text.unpack c) <> "-category.yaml"
     findCategoryProducts = CL.mapMaybe $ categoryProduct c

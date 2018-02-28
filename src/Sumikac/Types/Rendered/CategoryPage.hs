@@ -94,6 +94,7 @@ instance ToJSON CategoryRow where
 data CategoryPage = CategoryPage
   { _crCategoryRows :: [CategoryRow]
   , _crGalleryImages  :: [GalleryImage]
+  , crName :: Text
   } deriving (Show, Generic)
 
 instance FromJSON CategoryPage where
@@ -109,11 +110,12 @@ maxGallerySize = 8
 
 -- | Construct a 'CategoryPage' from the CategoryProducts and ImageGroups in a
 -- page
-mkCategoryPage :: Int -> [(CategoryProduct, NonEmpty WebImage)] -> CategoryPage
-mkCategoryPage n extracted =
+mkCategoryPage :: Text -> Int -> [(CategoryProduct, NonEmpty WebImage)] -> CategoryPage
+mkCategoryPage c n extracted =
   CategoryPage
   { _crCategoryRows = rows
   , _crGalleryImages = mkGalleryImages images
+  , crName = c
   }
   where (cps, extractedImgs) = unzip extracted
         rows = map CategoryRow $ chunks n cps
