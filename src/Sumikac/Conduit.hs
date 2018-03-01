@@ -37,6 +37,7 @@ import qualified Data.ByteString.Char8               as BS
 import           Data.List                           (isSuffixOf)
 import           Data.List.NonEmpty                  (NonEmpty)
 import qualified Data.List.NonEmpty                  as NonEmpty
+import qualified Data.Map.Strict                as Map
 import           Data.Monoid                         ((<>))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
@@ -57,6 +58,7 @@ import qualified Data.Conduit.Text                   as CT
 
 import           Sumikac.Types
 import           Sumikac.Types.Rendered.CategoryPage
+import           Sumikac.Types.Rendered.ProductPage
 
 -- Env is an environment available to all processing pipelines.
 --
@@ -105,18 +107,18 @@ runAll src dst = do
   case env of
     Left e -> throwM e -- could not load files in the environment
     Right env' -> do
-      let withEnv = flip runReaderT env'
+      let withEnv = flip runReaderT env' . runConduitRes
       runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-      withEnv $ runConduitRes $ convertFilesIn prodDir $ mkProductPipe dst
-      runConduitRes $ collectCategories dst $ knownCategories env'
+      withEnv $ convertFilesIn prodDir $ mkProductPipe dst
+      withEnv $ collectCategories dst $ knownCategories env'
 
 collectCategories
-  :: (MonadIO m, MonadResource m)
+  :: (MonadIO m, MonadResource m, MonadReader Env m)
   => FilePath -> NonEmpty Text -> ConduitM i o m ()
 collectCategories src cats = do
   let dst c = src </> (Text.unpack c) <> "-category.yaml"
   pages <- CC.yieldMany cats
-           .| awaitForever (collectCategory src)
+           .| awaitForever (yieldCategoryPage src)
            .| CC.sinkList
   let availableCats = map (^. categoryId) pages
       mkLayout = mkCategoryLayoutPage $ NonEmpty.fromList availableCats
@@ -124,36 +126,70 @@ collectCategories src cats = do
   CC.yieldMany layouts
     .| save
     .| CC.sinkNull
+  generateProductPages src $ NonEmpty.fromList availableCats
 
--- | A pipeline that creates a Category.
---
--- It scan *-complete.yaml in the given directory as FullProduct yaml files
---
--- If the product is the given category, it adds the product includes the product
--- in the CategoryPage it builds.
-collectCategory
-  :: (MonadIO m, MonadResource m)
-  => FilePath  -- ^ Target directory
-  -> Text      -- ^ category name
-  -> ConduitM i CategoryPage m ()
-collectCategory src c = CF.sourceDirectory src
-                        .| filter'
-                        .| awaitForever go
-                        .| handleEither dumpParseException decode' collect
+-- | Read the FullProducts in the target dir, and generate product pages from
+-- them
+generateProductPages
+  :: (MonadIO m, MonadResource m, MonadReader Env m)
+  => FilePath         -- ^ target directory
+  -> NonEmpty Text    -- ^ available categories
+  -> ConduitM i o m ()
+generateProductPages src cats =
+  CF.sourceDirectory src
+  .| filter'
+  .| sourceFile'
+  .| handleEither dumpParseException decode' generate
   where
     filter' = CC.filter (isSuffixOf "-complete.yaml")
+    decode' = CC.map decodeEither'
+    sourceFile' = awaitForever $ \f -> do
+      let msg = "Generating product page from: " <> Text.pack f
+      liftIO $ print msg
+      CC.sourceFile f
+
+    generate = awaitForever $ \fp -> do
+      Env { productEnv } <- ask
+      let FullProductEnv { _fpeRates} = productEnv
+          currs = NonEmpty.fromList $ Map.keys _fpeRates
+      case (mkProductLayoutPage cats currs fp) of
+        Left err -> do
+          let msg = "Failed to get product page yaml from " ++ show err
+          liftIO $ putStrLn msg
+        Right page -> do
+          let dst = src </> productLayoutBasename page
+          yield (encode page) .| CC.sinkFile dst
+
+-- | A pipeline that yields the model of a CategoryPage.
+--
+-- It scans *-complete.yaml in the given directory as FullProduct yaml files
+--   If the product is the given category, includes the product CategoryPage
+--   it yields
+yieldCategoryPage
+  :: (MonadIO m, MonadResource m)
+  => FilePath  -- ^ target directory
+  -> Text      -- ^ category name
+  -> ConduitM i CategoryPage m ()
+yieldCategoryPage src c =
+  CF.sourceDirectory src
+  .| filter'
+  .| sourceFile'
+  .| handleEither dumpParseException decode' collect
+  where
+    filter' = CC.filter (isSuffixOf "-complete.yaml")
+    decode' = CC.map decodeEither'
+    sourceFile' = awaitForever $ \f -> do
+      let msg = "Scanning for products in category: "
+            <> c <> " in " <> Text.pack f
+      liftIO $ print msg
+      CC.sourceFile f
+
     collect = do
-      accum <- findCategoryProducts .| CC.sinkList
+      accum <- (CL.mapMaybe $ categoryProduct c) .| CC.sinkList
       case (length accum) of
         0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
         _ -> yield $ mkCategoryPage c numColumns accum
-    decode' = CC.map decodeEither'
-    findCategoryProducts = CL.mapMaybe $ categoryProduct c
 
-    go f = do
-      let msg = "Scanning for products in category: " <> c <> " in " <> Text.pack f
-      liftIO $ print msg
-      CC.sourceFile f
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --

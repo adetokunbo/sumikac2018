@@ -11,6 +11,7 @@ Stability   : experimental
 module Sumikac.Types.Rendered.ProductPage
   ( ProductLayoutPage
   , mkProductLayoutPage
+  , productLayoutBasename
   )
 
 where
@@ -21,11 +22,13 @@ import           Data.Text.Encoding.Error
 
 import           Data.Aeson
 import           Data.Aeson.Casing
+import           Lens.Micro.Platform ((^.))
 
 import           GHC.Generics
 
 import           Sumikac.Types.Product
 import           Sumikac.Types.Rendered.Common
+import           Path.Default
 
 -- | Combines the base page data with information specific to a product.
 data ProductLayoutPage = ProductLayoutPage
@@ -51,3 +54,10 @@ mkProductLayoutPage theCats theCurrs prod = do
     { _clpSelf = prod
     , _clpBase = withTheProd'
     }
+
+-- | The basename of the path to store the encoded 'ProductLayoutPage'.
+productLayoutBasename :: ProductLayoutPage-> FilePath
+productLayoutBasename page = mkBasename "-product-layout.yaml" name
+  where
+    name = (fp ^. core . internalName)
+    fp = _clpSelf page

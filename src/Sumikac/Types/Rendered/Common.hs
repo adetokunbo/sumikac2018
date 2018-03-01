@@ -29,16 +29,17 @@ module Sumikac.Types.Rendered.Common
   )
 where
 
-import qualified Data.ByteString.Lazy     as LBS
-import           Data.List.NonEmpty       (NonEmpty (..))
-import qualified Data.List.NonEmpty       as NonEmpty
-import           Data.Monoid              ((<>))
-import           Data.Text                (Text)
+import qualified Data.ByteString.Lazy       as LBS
+import           Data.List.NonEmpty         (NonEmpty (..))
+import qualified Data.List.NonEmpty         as NonEmpty
+import           Data.Monoid                ((<>))
+import           Data.Text                  (Text)
 import           Data.Text.Encoding
 import           Data.Text.Encoding.Error
 
 import           Data.Aeson
 import           Data.Aeson.Casing
+import           Data.Aeson.Encode.Pretty
 import           Lens.Micro.Platform
 
 import           GHC.Generics
@@ -74,7 +75,7 @@ updateJsonText aLens jo jsonObj = do
   return $ jo & aLens ?~ t
 
 asText :: (ToJSON a) => a -> Either UnicodeException Text
-asText = decodeUtf8' . LBS.toStrict . encode
+asText = decodeUtf8' . LBS.toStrict . encodePretty
 
 instance ToJSON JsonObjects where
   toJSON = genericToJSON $ aesonPrefix snakeCase
