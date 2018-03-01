@@ -163,16 +163,15 @@ updateCategoryList page current allKnown =
   & htmlHead . titleUri .~ tu
   & htmlHead . titleMetaDesc .~ md
   where
-    items = NonEmpty.map mkLi allKnown
-    tp = maybe (hHead ^. titlePrefix) ((<>) " | ") current
+    md =  maybe (hHead ^. titleMetaDesc) ((<>) "SumikaCrafts ") current
     tu = mkFullUri current
-    md =  maybe (hHead ^. titleMetaDesc) (flip (<>) "SumikaCrafts ") current
-    hHead = page ^. htmlHead
+    tp = maybe (hHead ^. titlePrefix) ((<>) " | ") current
+    items = NonEmpty.map mkLi allKnown
     mkLi name = CategoryListItem
       { _cvName = name
       , _cvIsCurrent = maybe False (name ==) current
       , _cvUri = "/categories/" <> name <> ".html"
       }
-    mkFullUri = maybe (hHead ^. titleUri) mkFullUri'
-    mkFullUri' = (flip (<>) uriPrefix) . mkUri
+    mkFullUri = maybe (hHead ^. titleUri) $ ((<>) uriPrefix) . mkUri
     mkUri name = "/categories/" <> name <> ".html"
+    hHead = page ^. htmlHead

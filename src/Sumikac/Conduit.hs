@@ -30,27 +30,28 @@ where
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Resource
 
-import           Data.ByteString              (ByteString)
-import qualified Data.ByteString.Char8        as BS
-import           Data.Monoid                  ((<>))
-import           Data.Text                    (Text)
-import qualified Data.Text as Text
-import           Data.List               (isSuffixOf)
-import           Data.List.NonEmpty      (NonEmpty)
-
-import           Data.Aeson                   (FromJSON (..))
-import           Data.Yaml                    (ParseException (..), decode,
-                                               decodeEither', decodeFileEither,
-                                               encode)
-
-import           Data.Conduit
-import qualified Data.Conduit.Combinators     as CC
-import qualified Data.Conduit.Filesystem      as CF
-import qualified Data.Conduit.List            as CL
-import qualified Data.Conduit.Text            as CT
-
+import           Data.ByteString                     (ByteString)
+import qualified Data.ByteString.Char8               as BS
+import           Data.List                           (isSuffixOf)
+import           Data.List.NonEmpty                  (NonEmpty)
+import qualified Data.List.NonEmpty                  as NonEmpty
+import           Data.Monoid                         ((<>))
+import           Data.Text                           (Text)
+import qualified Data.Text                           as Text
 import           System.Directory
 import           System.FilePath
+
+import           Data.Aeson                          (FromJSON (..))
+import           Data.Yaml                           (ParseException (..),
+                                                      decode, decodeEither',
+                                                      decodeFileEither, encode)
+import           Lens.Micro.Platform
+
+import           Data.Conduit
+import qualified Data.Conduit.Combinators            as CC
+import qualified Data.Conduit.Filesystem             as CF
+import qualified Data.Conduit.List                   as CL
+import qualified Data.Conduit.Text                   as CT
 
 import           Sumikac.Types
 import           Sumikac.Types.Rendered.CategoryPage
@@ -59,7 +60,7 @@ import           Sumikac.Types.Rendered.CategoryPage
 --
 -- Initially it just contains the currencies.
 data Env = Env
-  { productEnv :: FullProductEnv
+  { productEnv      :: FullProductEnv
   , knownCategories :: NonEmpty Text
   }
 
@@ -110,17 +111,29 @@ runAll src dst = do
 collectCategories
   :: (MonadIO m, MonadResource m)
   => FilePath -> NonEmpty Text -> ConduitM i o m ()
-collectCategories src cats =
-  CC.yieldMany cats .| awaitForever (collectCategory src)
+collectCategories src cats = do
+  let dst c = src </> (Text.unpack c) <> "-category.yaml"
+  pages <- CC.yieldMany cats
+           .| awaitForever (collectCategory src)
+           .| CC.sinkList
+  let availableCats = map (^. categoryId) pages
+      mkLayout = mkCategoryLayoutPage $ NonEmpty.fromList availableCats
+      layouts = zip (map dst availableCats) $ map (encode . mkLayout) pages
+  CC.yieldMany layouts
+    .| save
+    .| CC.sinkNull
 
 -- | A pipeline that creates a Category.
 --
--- loop through all the complete product files in the product folder
+-- It scan *-complete.yaml in the given directory as FullProduct yaml files
 --
--- if the file is the given category, collect its id, full name, and initial thumbnail
+-- If the product is the given category, it adds the product includes the product
+-- in the CategoryPage it builds.
 collectCategory
   :: (MonadIO m, MonadResource m)
-  => FilePath -> Text -> ConduitM i o m ()
+  => FilePath  -- ^ Target directory
+  -> Text      -- ^ category name
+  -> ConduitM i CategoryPage m ()
 collectCategory src c = CF.sourceDirectory src
                         .| filter'
                         .| awaitForever go
@@ -131,14 +144,13 @@ collectCategory src c = CF.sourceDirectory src
       accum <- findCategoryProducts .| CC.sinkList
       case (length accum) of
         0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
-        _ -> yield (encode $ mkCategoryPage c 4 accum) .| CC.sinkFile dst
+        _ -> yield $ mkCategoryPage c numColumns accum
     decode' = CC.map decodeEither'
-    dst = src </> (Text.unpack c) <> "-category.yaml"
     findCategoryProducts = CL.mapMaybe $ categoryProduct c
 
     go f = do
       let msg = "Scanning for products in category: " <> c <> " in " <> Text.pack f
-      liftIO $ putStrLn "" >> print msg
+      liftIO $ print msg
       CC.sourceFile f
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.

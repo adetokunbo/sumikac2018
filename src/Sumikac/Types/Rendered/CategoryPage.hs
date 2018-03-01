@@ -18,11 +18,14 @@ Stability   : experimental
 module Sumikac.Types.Rendered.CategoryPage
   (
   -- * Products as used in Category Pages
-  CategoryLayoutPage(..)
-  ,CategoryPage(..)
-  , CategoryProduct(..)
+  CategoryLayoutPage
+  , CategoryPage
+  , CategoryProduct
+  , categoryId
   , categoryProduct
   , mkCategoryPage
+  , mkCategoryLayoutPage
+  , numColumns
   )
 where
 
@@ -43,6 +46,35 @@ import           Sumikac.Types.Product
 import           Sumikac.Types.Picasa
 
 import Sumikac.Types.Rendered.Common
+
+-- | Models the images show in a gallery.
+data GalleryImage = GalleryImage
+  { _giIndex   :: Int
+  , _giImage   :: WebImage
+  , _giAtStart :: Bool
+  } deriving (Show, Generic)
+
+instance FromJSON GalleryImage where
+  parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON GalleryImage where
+  toJSON = genericToJSON $ aesonPrefix snakeCase
+  toEncoding = genericToEncoding $ aesonPrefix snakeCase
+
+-- | Construct a list of 'GalleryImage' from some 'WebImages'.
+mkGalleryImages :: [WebImage] -> [GalleryImage]
+mkGalleryImages [] = []
+mkGalleryImages (x:xs)  = starter x : (zipWith mkWithIndex xs $ iterate succ 1)
+  where starter i = GalleryImage
+          { _giIndex = 0
+          , _giImage = i
+          , _giAtStart = True
+          }
+        mkWithIndex i idx = GalleryImage
+          { _giIndex = idx
+          , _giImage = i
+          , _giAtStart = False
+          }
 
 categoryProduct
   :: Text -> FullProduct -> Maybe (CategoryProduct, NonEmpty WebImage)
@@ -92,10 +124,14 @@ instance ToJSON CategoryRow where
 
 -- | Models the contents of a category page.
 data CategoryPage = CategoryPage
-  { _crCategoryRows :: [CategoryRow]
-  , _crGalleryImages  :: [GalleryImage]
-  , crName :: Text
+  { crCategoryRows :: [CategoryRow]
+  , crGalleryImages  :: [GalleryImage]
+  , _crCategoryId :: Text
   } deriving (Show, Generic)
+
+makeLensesFor [
+  ("_crCategoryId", "categoryId")
+  ] ''CategoryPage
 
 instance FromJSON CategoryPage where
   parseJSON = genericParseJSON $ aesonPrefix snakeCase
@@ -104,18 +140,18 @@ instance ToJSON CategoryPage where
   toJSON = genericToJSON $ aesonPrefix snakeCase
   toEncoding = genericToEncoding $ aesonPrefix snakeCase
 
--- | The maxiumum number of gallery images
-maxGallerySize :: Int
-maxGallerySize = 8
+numColumns, maxGallerySize :: Int
+maxGallerySize = 8 -- ^ The maxiumum number of gallery images
+numColumns = 4     -- ^ The number of columns of images.
 
 -- | Construct a 'CategoryPage' from the CategoryProducts and ImageGroups in a
 -- page
 mkCategoryPage :: Text -> Int -> [(CategoryProduct, NonEmpty WebImage)] -> CategoryPage
 mkCategoryPage c n extracted =
   CategoryPage
-  { _crCategoryRows = rows
-  , _crGalleryImages = mkGalleryImages images
-  , crName = c
+  { crCategoryRows = rows
+  , crGalleryImages = mkGalleryImages images
+  , _crCategoryId = c
   }
   where (cps, extractedImgs) = unzip extracted
         rows = map CategoryRow $ chunks n cps
@@ -134,35 +170,6 @@ oneByOne = concat . concatMap id . oneByOne'
     go (heads, tails) = (nonNull heads) : oneByOne' (nonNull tails)
     nonNull = filter $ not . null
 
--- | Models the images show in a gallery.
-data GalleryImage = GalleryImage
-  { _giIndex   :: Int
-  , _giImage   :: WebImage
-  , _giAtStart :: Bool
-  } deriving (Show, Generic)
-
-instance FromJSON GalleryImage where
-  parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-instance ToJSON GalleryImage where
-  toJSON = genericToJSON $ aesonPrefix snakeCase
-  toEncoding = genericToEncoding $ aesonPrefix snakeCase
-
--- | Construct a list of 'GalleryImage' from some 'WebImages'.
-mkGalleryImages :: [WebImage] -> [GalleryImage]
-mkGalleryImages [] = []
-mkGalleryImages (x:xs)  = starter x : (zipWith mkWithIndex xs $ iterate succ 1)
-  where starter i = GalleryImage
-          { _giIndex = 0
-          , _giImage = i
-          , _giAtStart = True
-          }
-        mkWithIndex i idx = GalleryImage
-          { _giIndex = idx
-          , _giImage = i
-          , _giAtStart = False
-          }
-
 -- | Combines the base page data with the information specific to categories.
 data CategoryLayoutPage = CategoryLayoutPage
   { _clpBase :: BasePage
@@ -172,3 +179,18 @@ data CategoryLayoutPage = CategoryLayoutPage
 instance ToJSON CategoryLayoutPage where
   toJSON = genericToJSON $ aesonPrefix snakeCase
   toEncoding = genericToEncoding $ aesonPrefix snakeCase
+
+mkCategoryLayoutPage
+  :: NonEmpty Text       -- ^ the other categories
+  -> CategoryPage        -- ^ the category page
+  -> CategoryLayoutPage  -- ^ the full category page
+mkCategoryLayoutPage otherCats page =
+  let
+    aCat = page ^. categoryId
+    theBase =
+      updateCategoryList defaultBasePage (Just aCat) otherCats
+  in
+    CategoryLayoutPage
+    { _clpSelf = page
+    , _clpBase = theBase
+    }
