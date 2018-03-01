@@ -60,6 +60,7 @@ library
                      , Sumikac.Types.YenAmount
                      , Sumikac.Types.Rendered.CategoryPage
                      , Sumikac.Types.Rendered.Common
+                     , Sumikac.Types.Rendered.ProductPage
 
   build-depends:       aeson         >= 1.2.3
                      , aeson-casing  >= 0.1 && < 1.0

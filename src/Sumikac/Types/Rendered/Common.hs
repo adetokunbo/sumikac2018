@@ -14,14 +14,18 @@ Maintainer  : sam@sumikacrafts.com
 Stability   : experimental
 -}
 module Sumikac.Types.Rendered.Common
-  ( Head(..)
-  , JsonObjects(..)
-  , Footer(..)
-  , BasePage(..)
-  , defaultBasePage
-  , updateCategories
+  ( BasePage
+  , JsonObjects
+  , defaultBase
   , updateCategoryList
-  , updatePageCurrenciesJson
+  , updateJsonText
+
+  -- * Lenses into 'JsonObjects'
+  , currencies
+  , productObj
+
+  -- * Lenses into 'BasePage'
+  , asJson
   )
 where
 
@@ -54,18 +58,14 @@ instance ToJSON Head where
 
 -- | Fields that represent the text of JSON objects to be placed in script tags
 data JsonObjects = JsonObjects
-  { _joCurrencies   :: Maybe Text
-  , _joCategories   :: Maybe Text
-  , joProduct       :: Maybe Text
+  { _joCurrencies :: Maybe Text
+  , _joCategories :: Maybe Text
+  , _joProductObj :: Maybe Text
   } deriving (Show, Generic)
 
 makeLensesWith abbreviatedFields ''JsonObjects
 
-updateCategories
-  :: JsonObjects
-  -> NonEmpty Text -> Either UnicodeException JsonObjects
-updateCategories = updateJsonText categories
-
+-- | Use a lens to update (Maybe Text) value with the json encoding of 'ToJSON'
 updateJsonText ::
   ToJSON js =>
   ASetter s t a (Maybe Text) -> s -> js -> Either UnicodeException t
@@ -121,8 +121,8 @@ theDomain = "www.sumikacrafts.com"
 uriPrefix = "https://" <> theDomain
 
 -- | An instance of BasePage with reasonable default values.
-defaultBasePage :: BasePage
-defaultBasePage = BasePage
+defaultBase :: BasePage
+defaultBase = BasePage
   { _bpHtmlHead = Head
     { _hdTitlePrefix = "SumikaCrafts"
     , _hdTitleMetaDesc =
@@ -142,15 +142,9 @@ defaultBasePage = BasePage
   , _bpAsJson = JsonObjects
     { _joCurrencies = Nothing
     , _joCategories = Nothing
-    , joProduct = Nothing
+    , _joProductObj = Nothing
     }
   }
-
--- | Updates base model with a JSON object holding the list of available
--- currencies.
-updatePageCurrenciesJson
-  :: BasePage -> NonEmpty Text -> Either UnicodeException BasePage
-updatePageCurrenciesJson = updateJsonText $ asJson . currencies
 
 -- | Update the base model to indicate the availble categories and maybe the
 -- selected category.

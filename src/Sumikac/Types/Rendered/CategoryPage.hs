@@ -115,9 +115,12 @@ numColumns, maxGallerySize :: Int
 maxGallerySize = 8 -- ^ The maxiumum number of gallery images
 numColumns = 4     -- ^ The number of columns of images.
 
--- | Construct a 'CategoryPage' from the CategoryProducts and ImageGroups in a
--- page
-mkCategoryPage :: Text -> Int -> [(CategoryProduct, NonEmpty WebImage)] -> CategoryPage
+-- | Smart constructor for 'CategoryPage'
+mkCategoryPage
+  :: Text -- ^ The category name
+  -> Int  -- ^ The number of products in each row displayed on the page
+  -> [(CategoryProduct, NonEmpty WebImage)] -- ^ the products and their images
+  -> CategoryPage
 mkCategoryPage c n extracted =
   CategoryPage
   { crCategoryRows = rows
@@ -141,7 +144,7 @@ oneByOne = concat . concatMap id . oneByOne'
     go (heads, tails) = (nonNull heads) : oneByOne' (nonNull tails)
     nonNull = filter $ not . null
 
--- | Combines the base page data with the information specific to categories.
+-- | Combines the base page data with information specific to Category.
 data CategoryLayoutPage = CategoryLayoutPage
   { _clpBase :: BasePage
   , _clpSelf :: CategoryPage
@@ -151,6 +154,7 @@ instance ToJSON CategoryLayoutPage where
   toJSON = genericToJSON $ aesonPrefix snakeCase
   toEncoding = genericToEncoding $ aesonPrefix snakeCase
 
+-- | Smart constructor for a CategoryLayoutPage
 mkCategoryLayoutPage
   :: NonEmpty Text       -- ^ the other categories
   -> CategoryPage        -- ^ the category page
@@ -158,8 +162,7 @@ mkCategoryLayoutPage
 mkCategoryLayoutPage otherCats page =
   let
     aCat = page ^. categoryId
-    theBase =
-      updateCategoryList defaultBasePage (Just aCat) otherCats
+    theBase = updateCategoryList defaultBase (Just aCat) otherCats
   in
     CategoryLayoutPage
     { _clpSelf = page
