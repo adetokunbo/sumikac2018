@@ -27,6 +27,8 @@ module Sumikac.Conduit
   )
 where
 
+import qualified Control.Exception                   as Exc
+import           Control.Monad                       (join)
 import           Control.Monad.Reader
 import           Control.Monad.Trans.Resource
 
@@ -229,12 +231,13 @@ pipeToFullProduct =
     let descPath = replaceBaseSuffix "-descs" path
         imgsPath = replaceBaseSuffix "-web-images" path
         handleOthers e = yield . Left . OtherParseException $ e
+        wrapExc = either (Left . OtherParseException . Exc.toException) Right
     handleC handleOthers $ do
       imgs <- liftIO $ decodeFileEither imgsPath
       desc <- liftIO $ decodeFileEither descPath
-      yield $ fullProduct p productEnv <$> imgs <*> desc
+      yield $ join $ wrapExc <$> (fullProduct p productEnv <$> imgs <*> desc)
 
--- | Save the content to the indicated path.
+  -- | Save the content to the indicated path.
 --
 -- This is not sink - the inputs are yielded so that further downstream
 -- processing is allowed.

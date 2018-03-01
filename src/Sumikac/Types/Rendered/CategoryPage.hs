@@ -29,52 +29,23 @@ module Sumikac.Types.Rendered.CategoryPage
   )
 where
 
-import           Data.List                      (unfoldr)
-import           Data.List.NonEmpty             (NonEmpty(..))
-import qualified Data.List.NonEmpty             as NonEmpty
-import           Data.Text                      (Text)
+import           Data.List                     (unfoldr)
+import           Data.List.NonEmpty            (NonEmpty (..))
+import qualified Data.List.NonEmpty            as NonEmpty
+import           Data.Text                     (Text)
 
 import           Data.Aeson
 import           Data.Aeson.Casing
 import           Lens.Micro.Platform
 
 -- Hide (to) as it conflicts with Lens.Micro.Platform
-import           GHC.Generics                   hiding (to)
+import           GHC.Generics                  hiding (to)
 
 import           Sumikac.Types.Description
-import           Sumikac.Types.Product
 import           Sumikac.Types.Picasa
+import           Sumikac.Types.Product
 
-import Sumikac.Types.Rendered.Common
-
--- | Models the images show in a gallery.
-data GalleryImage = GalleryImage
-  { _giIndex   :: Int
-  , _giImage   :: WebImage
-  , _giAtStart :: Bool
-  } deriving (Show, Generic)
-
-instance FromJSON GalleryImage where
-  parseJSON = genericParseJSON $ aesonPrefix snakeCase
-
-instance ToJSON GalleryImage where
-  toJSON = genericToJSON $ aesonPrefix snakeCase
-  toEncoding = genericToEncoding $ aesonPrefix snakeCase
-
--- | Construct a list of 'GalleryImage' from some 'WebImages'.
-mkGalleryImages :: [WebImage] -> [GalleryImage]
-mkGalleryImages [] = []
-mkGalleryImages (x:xs)  = starter x : (zipWith mkWithIndex xs $ iterate succ 1)
-  where starter i = GalleryImage
-          { _giIndex = 0
-          , _giImage = i
-          , _giAtStart = True
-          }
-        mkWithIndex i idx = GalleryImage
-          { _giIndex = idx
-          , _giImage = i
-          , _giAtStart = False
-          }
+import           Sumikac.Types.Rendered.Common
 
 categoryProduct
   :: Text -> FullProduct -> Maybe (CategoryProduct, NonEmpty WebImage)
@@ -124,9 +95,9 @@ instance ToJSON CategoryRow where
 
 -- | Models the contents of a category page.
 data CategoryPage = CategoryPage
-  { crCategoryRows :: [CategoryRow]
-  , crGalleryImages  :: [GalleryImage]
-  , _crCategoryId :: Text
+  { crCategoryRows  :: [CategoryRow]
+  , crGalleryImages :: NonEmpty GalleryImage
+  , _crCategoryId   :: Text
   } deriving (Show, Generic)
 
 makeLensesFor [
@@ -156,7 +127,7 @@ mkCategoryPage c n extracted =
   where (cps, extractedImgs) = unzip extracted
         rows = map CategoryRow $ chunks n cps
         asList = map NonEmpty.toList extractedImgs
-        images = take maxGallerySize $ oneByOne asList
+        images = NonEmpty.fromList $ take maxGallerySize $ oneByOne asList
 
 chunks :: Int -> [a] -> [[a]]
 chunks n = takeWhile (not.null) . unfoldr (Just . splitAt n)

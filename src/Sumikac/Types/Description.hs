@@ -33,7 +33,8 @@ module Sumikac.Types.Description
   , otherSections
   , overview
   , productName
-
+  , forUse
+  , forOrder
   )
 where
 
@@ -174,17 +175,22 @@ data FullDesc = FullDesc
   , _fdDescription   :: Maybe Text
   , _fdLinks         :: Maybe [Text]
   , _fdOverview      :: Maybe Text
+  , _fdForUse        :: Maybe Text
+  , _fdForOrder      :: Maybe Text
   , _fdOtherSections :: Map Label Text
   } deriving (Show, Generic)
 
 makeLensesWith abbreviatedFields ''FullDesc
 
+fullDescOptions :: Options
+fullDescOptions = (aesonPrefix snakeCase) { omitNothingFields = True }
+
 instance FromJSON FullDesc where
-  parseJSON = genericParseJSON ourOptions
+  parseJSON = genericParseJSON fullDescOptions
 
 instance ToJSON FullDesc where
-  toJSON = genericToJSON ourOptions
-  toEncoding = genericToEncoding ourOptions
+  toJSON = genericToJSON fullDescOptions
+  toEncoding = genericToEncoding fullDescOptions
 
 -- | Unfolds a 'DescAccum' into a list of 'FullDesc'.
 asFullDescs :: DescAccum -> [FullDesc]
@@ -192,16 +198,28 @@ asFullDescs (DescAccum CommonDesc {..} solos) =
   -- drop any productId where there is no ShortDesc; TODO log the dropped productIds
   catMaybes $ map (convert . snd) $ Map.toList solos
   where
+    knownSections =
+      [ "Description"
+      , "Overview"
+      , "Attention for order"
+      , "Attention for the order"
+      , "Attention for use"
+      ]
     convert (SoloDesc Nothing _) = Nothing
     convert (SoloDesc (Just ShortDesc {..}) sections) =
       let sections' = Map.unionWith (\x _ -> x) sections cdSections
           filterOthers = Map.filterWithKey others
-          others k _ = k /= "Description" && k /= "Overview"
+          others k _ = not $ elem k knownSections
+          forOrder' =
+            Map.lookup "Attention for order" sections'
+            <|> Map.lookup "Attention for the order" sections'
       in
         Just FullDesc
         { fdInternalName = _sdInternalName
         , _fdProductName = _sdProductName
         , _fdDescription = Map.lookup "Description" sections'
+        , _fdForUse = Map.lookup "Attention for use" sections'
+        , _fdForOrder = forOrder'
         , _fdLinks = cdLinks
         , _fdOverview = Map.lookup "Overview" sections'
         , _fdOtherSections = filterOthers sections'

@@ -28,12 +28,18 @@ module Sumikac.Types.Picasa
     -- * Lenses for ImageGroup
     , content
     , thumbnails
+
+    -- * Gallery creation
+    , GalleryImage
+    , mkGalleryImages
+    , asGalleryImages
     ) where
 
 
 import qualified Control.Exception    as Exc
 import           Data.ByteString.Lazy (ByteString)
-import           Data.List.NonEmpty   (NonEmpty)
+import           Data.List.NonEmpty   (NonEmpty (..))
+import qualified Data.List.NonEmpty   as NonEmpty
 import           Data.Monoid
 import           Data.Text            (Text, isPrefixOf, replace, unpack)
 
@@ -41,7 +47,8 @@ import           Data.Aeson
 import           Data.Aeson.Casing
 import           Lens.Micro.Platform
 
-import           GHC.Generics
+-- Hide (to) as it conflicts with Lens.Micro.Platform
+import           GHC.Generics         hiding (to)
 
 -- | Indicates that the Picasa Web JSON could not be parsed.
 data WebAlbumException = WebAlbumException String
@@ -142,11 +149,11 @@ data ImageGroup = ImageGroup
 makeLensesWith abbreviatedFields ''ImageGroup
 
 instance FromJSON ImageGroup where
-  parseJSON = genericParseJSON $ aesonPrefix pascalCase
+  parseJSON = genericParseJSON $ aesonPrefix camelCase
 
 instance ToJSON ImageGroup where
-  toJSON = genericToJSON $ aesonPrefix pascalCase
-  toEncoding = genericToEncoding $ aesonPrefix pascalCase
+  toJSON = genericToJSON $ aesonPrefix camelCase
+  toEncoding = genericToEncoding $ aesonPrefix camelCase
 
 -- | Decodes a list of 'ImageGroup' from a 'ByteString' containing a Picasa
 -- Photo JSON response.
@@ -176,3 +183,37 @@ instance FromJSON RawImageGroups where
     feed <- o .: "feed"
     entries <- feed .: "entry"
     return $ RawImageGroups entries
+
+-- | Models the images show in a gallery.
+data GalleryImage = GalleryImage
+  { _giIndex   :: Int
+  , _giImage   :: WebImage
+  , _giAtStart :: Bool
+  } deriving (Show, Generic)
+
+instance FromJSON GalleryImage where
+  parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON GalleryImage where
+  toJSON = genericToJSON $ aesonPrefix snakeCase
+  toEncoding = genericToEncoding $ aesonPrefix snakeCase
+
+-- | Construct a list of 'GalleryImage' from some 'WebImages'.
+mkGalleryImages :: NonEmpty WebImage -> NonEmpty GalleryImage
+mkGalleryImages (x :| xs)  = starter x :| (zipWith mkWithIndex xs $ iterate succ 1)
+  where starter i = GalleryImage
+          { _giIndex = 0
+          , _giImage = i
+          , _giAtStart = True
+          }
+        mkWithIndex i idx = GalleryImage
+          { _giIndex = idx
+          , _giImage = i
+          , _giAtStart = False
+          }
+
+-- | Convert some 'ImageGroup' to 'GalleryImage'.
+asGalleryImages :: NonEmpty ImageGroup -> NonEmpty GalleryImage
+asGalleryImages igs = mkGalleryImages images
+  where
+    images = NonEmpty.map (^. content . to NonEmpty.head) igs

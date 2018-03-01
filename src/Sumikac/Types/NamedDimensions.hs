@@ -13,15 +13,24 @@ module Sumikac.Types.NamedDimensions where
 
 import qualified Data.HashMap.Strict            as HM
 import           Data.Text                      (Text)
+import           GHC.Generics
 
 import           Data.Aeson
+import           Data.Aeson.Casing
 import           Data.Aeson.Types
 
 -- | Represents dimension specifications that can be named.
 data NamedDimension = NamedDimension
   { _ndName  :: Text
   , _ndValue :: Text
-  } deriving (Show)
+  } deriving (Show, Generic)
+
+instance FromJSON NamedDimension where
+  parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON NamedDimension where
+  toJSON = genericToJSON $ aesonPrefix snakeCase
+  toEncoding = genericToEncoding $ aesonPrefix snakeCase
 
 newtype NamedDimensions = NamedDimensions
   { unNamedDimensions :: [NamedDimension]}

@@ -18,23 +18,25 @@ Stability   : experimental
 module Sumikac.Types.Product
   (
   -- * Full Products
-    FullProduct(..)
+    FullProduct
   , FullProductEnv(..)
   , fullProduct
   , fullProductBasename
 
-  -- * Lenses for Full Product
+  -- * Lenses into a 'FullProduct'
   , allPrices
   , core
+  , coreDerived
   , deliveryCosts
   , fullDesc
+  , galleryImages
   , imageGroups
 
   -- * Products
   , Product(..)
   , productBasename
 
-  -- * Lenses for Product
+  -- * Lenses into a 'Product'
   , internalName
   , categories
   )
@@ -42,10 +44,12 @@ where
 
 import           Control.Applicative
 
-import           Data.List.NonEmpty             (NonEmpty(..))
+import qualified Control.Exception              as Exc
+import           Data.List.NonEmpty             (NonEmpty (..))
 import           Data.Map.Strict                (Map)
 import qualified Data.Map.Strict                as Map
 import           Data.Text                      (Text)
+import qualified Data.Text                      as Text
 
 import           Data.Aeson
 import           Data.Aeson.Casing
@@ -105,20 +109,86 @@ instance ToJSON Product where
   toJSON = genericToJSON productOptions
   toEncoding = genericToEncoding productOptions
 
+-- | Fields needed in to display a product that are derived from its other
+-- fields
+data ProductDerivations = ProductDerivations
+  { _ppAllMaterials      :: Maybe Text -- ^ all the materials comma-separated
+  , _ppDeliveryWeight    :: Weight -- ^ the delivery weight
+  , _ppHasManyDimensions :: Bool -- ^ if there are many dimensions
+  , _ppManyDimensions    :: [NamedDimension] -- ^ the text of many dimensions
+  , _ppHasColours        :: Bool -- ^ if there any colours
+  , _ppHasSetSizes       :: Bool -- ^ if there any set sizes
+  , _ppHasShapes         :: Bool -- ^ if there any shapes
+  , _ppHasPatterns       :: Bool -- ^ if there are any patterns
+  , _ppIsNormal          :: Bool  -- ^ if there no colours, set sizes, shapes or patterns
+  } deriving (Show, Generic)
+
+instance FromJSON ProductDerivations where
+  parseJSON = genericParseJSON $ aesonPrefix snakeCase
+
+instance ToJSON ProductDerivations where
+  toJSON = genericToJSON $ aesonPrefix snakeCase
+  toEncoding = genericToEncoding  $ aesonPrefix snakeCase
+
+-- | Exception that indicates that a product had no delivery weight
+data NoDeliveryWeight = NoDeliveryWeight
+
+instance Show NoDeliveryWeight where
+  show _ = "Could not compute a delivery weight"
+
+instance Exc.Exception NoDeliveryWeight
+
+mkDerivations :: Product -> Either NoDeliveryWeight ProductDerivations
+mkDerivations p =
+  let
+    allM = Text.intercalate "," <$> _materials p
+    deliveryW = _weightAfterWrapping p <|> _weight p
+    hasMd = has _Just $ _manyDimensions p
+    md = maybe [] unNamedDimensions $ _manyDimensions p
+    withErr = maybe $ Left NoDeliveryWeight
+    hasShapes' = has _Just $ _shape p
+    hasColours' = has _Just $ _colours p
+    hasSetSizes' = has _Just $ _setSizes p
+    hasPatterns' = has _Just $ _patterns p
+    isNormal' = not (hasShapes' || hasColours' || hasSetSizes' || hasPatterns')
+    mkIt w =
+      Right $ ProductDerivations
+      { _ppAllMaterials = allM
+      , _ppDeliveryWeight = w
+      , _ppHasManyDimensions = hasMd
+      , _ppManyDimensions = md
+      , _ppHasShapes = hasShapes'
+      , _ppHasColours = hasColours'
+      , _ppHasPatterns = hasPatterns'
+      , _ppHasSetSizes = hasSetSizes'
+      , _ppIsNormal = isNormal'
+      }
+  in
+    withErr mkIt deliveryW
+
 -- | Smart constructor for creating a 'FullProduct'.
 fullProduct
   :: Product
   -> FullProductEnv
   -> NonEmpty ImageGroup
   -> FullDesc
-  -> FullProduct
-fullProduct p fpe@(FullProductEnv { _fpeRates, _fpeCosts }) imgs =
+  -> Either NoDeliveryWeight FullProduct
+fullProduct p fpe@(FullProductEnv { _fpeRates, _fpeCosts }) imgs desc =
   let
-    dc = allDeliveryCosts fpe p
+    mkIt d = FullProduct
+      { _fpCore = p,
+        _fpCoreDerived = d
+      , _fpDeliveryCosts = allDeliveryCosts fpe p
+      , _fpAllPrices = mkPrices p _fpeRates
+      , _fpImageGroups = imgs
+      , _fpGalleryImages = asGalleryImages imgs
+      , _fpFullDesc = desc
+      }
+
     mkPrices :: RealFloat a => Product -> Map k a -> Map k Scientific
     mkPrices y = Map.map (\x -> Sci.fromFloatDigits $ x * (fromIntegral $ _price y))
   in
-    FullProduct p dc (mkPrices p _fpeRates) imgs
+    either Left (Right . mkIt) $ mkDerivations p
 
 -- | Context used when creating a 'FullProduct' with a product
 data FullProductEnv = FullProductEnv
@@ -149,9 +219,11 @@ yenDeliveryCosts costs p = calc theWeight
 -- sources in a single.
 data FullProduct = FullProduct
   { _fpCore          :: Product
+  , _fpCoreDerived   :: ProductDerivations
   , _fpDeliveryCosts :: Maybe (Map EmsZone (Map Text Scientific))
   , _fpAllPrices     :: Map Text Scientific
   , _fpImageGroups   :: NonEmpty ImageGroup
+  , _fpGalleryImages :: NonEmpty GalleryImage
   , _fpFullDesc      :: FullDesc
   } deriving (Show, Generic)
 
@@ -162,11 +234,11 @@ fullProductBasename :: FullProduct-> FilePath
 fullProductBasename fp = mkBasename "-complete.yaml" (fp ^. core . internalName)
 
 instance FromJSON FullProduct where
-  parseJSON = genericParseJSON $ aesonPrefix pascalCase
+  parseJSON = genericParseJSON $ aesonPrefix snakeCase
 
 instance ToJSON FullProduct where
-  toJSON = genericToJSON $ aesonPrefix pascalCase
-  toEncoding = genericToEncoding $ aesonPrefix pascalCase
+  toJSON = genericToJSON $ aesonPrefix snakeCase
+  toEncoding = genericToEncoding $ aesonPrefix snakeCase
 
 -- | The basename of the path to store the encoded 'Product'.
 productBasename :: Product -> FilePath
