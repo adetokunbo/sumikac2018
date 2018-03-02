@@ -59,19 +59,27 @@ import           Path.Default
 --
 -- One is a short description, the other a block of text with a label.
 data LitDesc
-  = Block LabelledBlock
-  | Short ShortDesc
+  = Short ShortDesc
+  | Block LabelledBlock
   deriving (Show, Generic)
 
+litDescOptions :: Options
+litDescOptions =
+  defaultOptions
+  { omitNothingFields = True
+  , sumEncoding = UntaggedValue
+  }
+
 instance FromJSON LitDesc where
-  parseJSON = genericParseJSON defaultOptions {sumEncoding = UntaggedValue }
+  parseJSON = genericParseJSON litDescOptions
 
 instance ToJSON LitDesc where
-  toJSON = genericToJSON defaultOptions {sumEncoding = UntaggedValue }
-  toEncoding = genericToEncoding defaultOptions {sumEncoding = UntaggedValue }
+  toJSON = genericToJSON litDescOptions
+  toEncoding = genericToEncoding litDescOptions
 
 ourOptions :: Options
-ourOptions = (aesonPrefix pascalCase) { omitNothingFields = True }
+ourOptions = initial{ omitNothingFields = True }
+  where initial = aesonPrefix pascalCase
 
 -- | ShortDesc are a minimal description of the product, along with any links
 -- that might occur in its paragraphs.
