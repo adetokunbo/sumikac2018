@@ -312,7 +312,7 @@ data ConvertPipeline a o m = ConvertPipeline
 dumpParseException
   :: (MonadIO m)
   => ConduitM ParseException o m ()
-dumpParseException = CC.map show .| CC.unlines .| CC.map BS.pack .| CC.stderr
+dumpParseException = CC.map prettyPrintParseException .| CC.unlines .| CC.map BS.pack .| CC.stdout
 
 withDumpParseException
   :: (MonadThrow m, MonadResource m)
@@ -350,6 +350,7 @@ pipeYamlDocs
   => ConduitM FileContents YamlDoc m ()
 pipeYamlDocs =
   CT.decode CT.utf8
+  .| CC.map (flip (<>) "\n---\n") -- ^ Ensure trailing separator
   .| byDashes
   .| CT.encode CT.utf8
   .| (CC.filter $ not . BS.null)
