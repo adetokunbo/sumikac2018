@@ -1,0 +1,208 @@
+<!-- START cart_order_details.html -->
+<div class="col-xs-12 col-sm-offset-1 col-sm-10" data-ng-hide='values.order.needsConfirmation'>
+  <div class="discount-box">
+    <div>
+      <form novalidate class="form-inline" name="values.codeForm" role="form">
+        <div class="form-group">
+          <label for="discount_code" class='control-label'>Promo Code:</label>
+          <input class="form-control input-sm"
+                 name="discount_code"
+                 ng-change="onUpdateDiscountCode()"
+                 ng-model="fields.discount_code"
+                 type="text" />
+          <br />
+          <span class="form-info">Enter your promo code if you have one</span>
+        </div>
+        <div class="form-error-holder"
+             ng-show="values.errors.discount_code || values.checkingDiscountCode">
+          <span class="form-error" data-ng-if="values.errors.discount_code">
+            Sorry, this code or ID was not recognized. Check that you
+            entered it correctly, or fill in the partner name below.
+          </span>
+          <span class="form-error" data-ng-show="values.checkingDiscountCode">
+            checking... please wait
+          </span>
+        </div>
+        <div class="form-group" data-ng-if="values.errors.ask_for_partner">
+          <label for="discount_code_issuer" class='control-label'>Partner</label>
+          <input class="form-control input-sm"
+                 name="discount_partner"
+                 ng-change="onUpdateDiscountPartner()"
+                 ng-model="fields.discount_partner"
+                 type="text" />
+          <div class="form-error-holder">
+            <span class="form-error" data-ng-if="!values.discount_partner_checked">
+              Our partner may not have authorized your code yet.  Please enter
+              the name of the partner who issued you with the promo code.
+              We'll contact them; once they confirm your code code, we'll
+              refund you the discount amount.
+            </span>
+            <span class="form-info" data-ng-if="values.discount_partner_ok">
+              We will contact this partner and refund the discount amount once
+              they confirm your code.
+            </span>
+            <span class="form-error" data-ng-if="values.errors.discount_partner">
+              We don't know this partner.  To obtain a discount, please
+              contact them and confirm the promo code and the partner name to
+              use on this site.
+            </span>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class='cart-order-details' data-ng-show='values.cartReady'>
+
+  <div class="row" data-ng-hide='values.order.needsConfirmation'>
+
+    <!-- Order summary with whatever notifications are necessary -->
+    <div class="skc-order-summary col-xs-offset-1 col-xs-10 col-sm-offset-2 col-sm-8">
+      <div class="skc-cart-header text-center">
+        Order Summary
+      </div>
+      <div class="cancel-note" data-ng-show="values.order.showCancelNote">
+        <span class='notification'>Paypal payment cancelled; please continue browsing ...</span>
+      </div>
+      <div class="error-note" data-ng-show="values.order.showErrorNote">
+        <span class='notification newline'>We cannot contact Paypal</span>
+        <span class='notification newline'>Sorry, our server can't reach Paypal right now.</span>
+        <span class='notification'>We're working on a fix - please try again in a couple of hours.</span>
+      </div>
+      <div class="error-note" data-ng-show="values.order.showConfirmationErrorNote">
+        <span class='notification newline'>Payment confirmation failed</span>
+        <span class='notification newline'>Sorry, but Paypal did not confirm that payment.</span>
+        <span class='notification'>Please try again once the PayPal button appears.</span>
+      </div>
+      <div class="contacting-note" data-ng-show="values.order.showContactingNote">
+        <span class='notification'>Contacting Paypal ...</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col-xs-offset-1 col-xs-10 col-sm-offset-2 col-sm-8">
+      <div class="row"
+           data-ng-show='values.order.needsConfirmation'>
+        <div class="skc-confirm-payment">
+          <div class="order-summary-title text-center">
+            Order Summary - Confirm Payment
+          </div>
+          <div class="contacted-ok-note">
+            <span class='notification newline'>1. Contacted PayPal</span>
+            <span class='notification newline'>2. PayPal details accepted!</span>
+            <span class='notification'>Click&nbsp;</span>
+            <button class='btn-contacted-ok-note btn btn-default'
+                    data-ng-click='accept()'
+                    type='button'>Confirm Payment</button>
+            <span class='notification'>&nbsp;to complete the purchase</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="row amount-display">
+        <div class="row">
+          <div class="col-xs-offset-4 col-xs-4 text-right">
+            <span class="approx">approx.&nbsp;</span>
+          </div>
+          <div class="col-xs-4 text-right">
+            <span class="approx">in &yen;</span>
+          </div>
+        </div>
+
+        <div class="row" data-ng-if="values.has_discount">
+          <div class="col-xs-4 text-left">Full Item Cost</div>
+          <div class="col-xs-4 text-right">
+            <span data-ng-bind-html='values.totalCost.full[values.myCurrency] | sc_currency:values.myCurrency'></span>
+          </div>
+          <div class="col-xs-4 text-right" data-ng-bind-html='values.totalCost.full.JPY | sc_currency:"JPY"'></div>
+        </div>
+
+        <div class="row discount-row" data-ng-if="values.has_discount">
+          <div class="col-xs-4 text-left">Discount</div>
+          <div class="col-xs-4 text-right">
+            <span>-</span>
+            <span data-ng-bind-html='values.totalCost.discount[values.myCurrency] | sc_currency:values.myCurrency'></span>
+          </div>
+          <div class="col-xs-4 text-right">
+            <span>-</span>
+            <span data-ng-bind-html='values.totalCost.discount.JPY | sc_currency:"JPY"'></span>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-xs-4 text-left">Item Total</div>
+          <div class="col-xs-4 text-right">
+            <span data-ng-bind-html='values.totalCost.base[values.myCurrency] | sc_currency:values.myCurrency'></span>
+          </div>
+          <div class="col-xs-4 text-right" data-ng-bind-html='values.totalCost.base.JPY | sc_currency:"JPY"'></div>
+        </div>
+
+        <div class="row">
+          <div class="col-xs-4 text-left">Delivery Cost</div>
+          <div class="col-xs-4 text-right">
+            <span data-ng-bind-html='values.totalCost.delivery[values.myCurrency] | sc_currency:values.myCurrency'></span>
+          </div>
+          <div class="col-xs-4 text-right" data-ng-bind-html='values.totalCost.delivery.JPY | sc_currency:"JPY"'></div>
+        </div>
+
+        <div class="row skc-cart-overall-total">
+          <div class="col-xs-4 text-left">Overall Total</div>
+          <div class="col-xs-4 text-right">
+            <span data-ng-bind-html='values.totalCost.overall[values.myCurrency] | sc_currency:values.myCurrency'></span>
+          </div>
+          <div class="col-xs-4 text-right" data-ng-bind-html='values.totalCost.overall.JPY | sc_currency:"JPY"'></div>
+        </div>
+
+        <div class="row skc-checkout-buttons" data-ng-show="values.order.showCheckout &amp;&amp; values.hasUserInfo">
+          <div class="col-sm-offset-8 col-sm-4 col-xs-offset-4 col-xs-6">
+            <a href="javascript:;" data-ng-click="checkout()" data-paypal-button="true">
+              <img src="//www.paypalobjects.com/en_US/i/btn/btn_xpressCheckout.gif" alt="Check out with PayPal" />
+            </a>
+          </div>
+        </div>
+
+        <div class="row text-center skc-checkout-info" data-ng-hide="values.hasUserInfo">
+          <span>Enter your details, then checkout with&nbsp;</span>
+          <img src="https://www.paypalobjects.com/webstatic/en_US/i/buttons/pp-acceptance-small.png" alt="PayPal Acceptance">
+        </div>
+        <div class="row text-center skc-checkout-buttons" data-ng-hide="values.hasUserInfo">
+          <button class="btn btn-success"
+                  data-ng-click="openUserDetailsForm()"
+                  type="button">Enter Payment Details</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row" data-ng-if="values.hasUserInfo">
+    <div class="discount-box col-xs-offset-1 col-xs-10 col-sm-offset-2 col-sm-8">
+      <div class="text-center">
+        <span class="discount-box-title">Delivery Details</span>
+        <span data-ng-hide='values.order.needsConfirmation'>
+          <a class='change-link' data-ng-click="openUserDetailsForm()">(change)</a>
+        </span>
+      </div>
+      <div class="row">
+        <div class="col-xs-offset-1">
+          {{=<% %>=}}
+          <span class="firstname">{{values.nameAndEmail.firstname}}</span>&nbsp;<span class="lastname">{{values.nameAndEmail.lastname}}</span>
+          <%={{ }}=%>
+        </div>
+      </div>
+      <div class="row">
+        <div class="col-xs-offset-1 shipping-address-display">
+          <span data-ng-bind="values.shippingAddress.streetAddress1"></span>
+          <span data-ng-show="values.shippingAddress.streetAddress2" data-ng-bind="values.shippingAddress.streetAddress2"></span>
+          <span data-ng-bind="values.shippingAddress.city"></span>
+          <span data-ng-show="values.shippingAddress.postCode" data-ng-bind="values.shippingAddress.postCode"></span>
+          <span data-ng-show="values.shippingAddress.state" data-ng-bind="values.shippingAddress.state"></span>
+          <span data-ng-show="values.shippingAddress.phone" data-ng-bind="values.shippingAddress.phone"></span>
+          <span data-ng-bind="values.country.current.name"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- END cart_order_details.html -->

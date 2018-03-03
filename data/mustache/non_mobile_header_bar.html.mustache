@@ -1,0 +1,39 @@
+<!-- START non_mobile_header_bar.html -->
+<div class="row header-bar hidden-xs">
+  <div class="col-sm-offset-1 col-sm-1 btn-group">
+    <button class="btn btn-default dropdown-toggle" type="button" data-toggle="dropdown">
+      <img class="svg-menu" src="/pics/three_line_menu_16x16.png" alt="Menu">
+    </button>
+    <ul class="dropdown-menu">
+      <li><a href="/about.html">About</a></li>
+      <li><a target="_blank" href="http://blog.sumikacrafts.com/">Blog</a></li>
+      <li role="separator" class="divider"></li>
+      <li class="category-heading"><strong>Categories</strong></li>
+      {{> category_list_items.html}}
+      <li role="separator" class="divider"></li>
+      <li>
+        <a class="cartImage" href="/cart.html"><img src="/pics/cart.png" alt="shopping cart" />&nbsp;Cart</a>
+      </li>
+      <li role="separator" class="divider"></li>
+      <li>
+        <div>
+          <ul class="list-inline">
+          {{> social_links_list_items.html}}
+          </ul>
+        </div>
+      </li>
+      <li><a href="/">Home</a></li>
+      <li><a href="mailto:contact@sumikacrafts.com">Contact&nbsp;us</a></li>
+    </ul>
+  </div>
+  <div class="col-sm-offset-2 col-sm-4 hidden-xs">
+    <a href="/"><img class="logo-image" src="/pics/sumika_logo.png" alt="Sumika Crafts" /></a>
+  </div>
+  <div class="col-sm-offset-1 col-sm-3 hidden-xs">
+    <div class="skc-social-header">      <ul class="list-inline">
+        {{> social_links_list_items.html}}
+      </ul>
+    </div>
+  </div>
+</div>
+<!-- END non_mobile_header_bar.html -->

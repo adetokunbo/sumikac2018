@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+  {{> head.html}}
+  <body data-ng-app='sc.base'>
+    <div class="container">
+      {{> non_mobile_header_bar.html}}
+      <div class="row">
+        <div class="col-sm-1">
+          {{> mobile_header_dropdown.html}}
+        </div>
+        <div class="col-sm-11">
+          <div class="row col-sm-11 hidden-xs color-bar">
+          </div>
+          {{> privacy.html}}
+          {{> common_footer.html}}
+        </div>
+      </div>
+    </div>
+   {{> default_script_tags.html}}
+  </body>
+</html>

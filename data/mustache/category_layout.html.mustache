@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  {{#base}}
+  {{> head.html}}
+  {{/base}}
+  <body data-ng-app='sc.product_page'>
+    <div class="container">
+      {{#base}}
+      {{> non_mobile_header_bar.html}}
+      {{/base}}
+      <div class="row">
+        <div class="col-sm-1">
+          {{#base}}
+          {{> mobile_header_dropdown.html}}
+          {{/base}}
+        </div>
+        <div class="col-sm-11">
+          <div class="row col-sm-11 hidden-xs color-bar">
+          </div>
+          {{#self}}
+          {{> category_page_carousel.html}}
+          {{> category_page_product_rows.html}}
+          {{/self}}
+          {{#base}}
+          {{> common_footer.html}}
+          {{/base}}
+        </div>
+      </div>
+    </div>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+            crossorigin="anonymous"></script>
+  </body>
+</html>

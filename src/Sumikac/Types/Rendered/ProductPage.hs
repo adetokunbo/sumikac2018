@@ -11,7 +11,8 @@ Stability   : experimental
 module Sumikac.Types.Rendered.ProductPage
   ( ProductLayoutPage
   , mkProductLayoutPage
-  , productLayoutBasename
+  , productPageBasename
+  , renderProduct
   )
 
 where
@@ -19,16 +20,18 @@ where
 import           Data.List.NonEmpty            (NonEmpty (..))
 import           Data.Text                     (Text)
 import           Data.Text.Encoding.Error
+import qualified Data.Text.Lazy                as LT
 
 import           Data.Aeson
 import           Data.Aeson.Casing
-import           Lens.Micro.Platform ((^.))
+import           Lens.Micro.Platform           ((^.))
+import           Text.Mustache
 
 import           GHC.Generics
 
+import           Path.Default
 import           Sumikac.Types.Product
 import           Sumikac.Types.Rendered.Common
-import           Path.Default
 
 -- | Combines the base page data with information specific to a product.
 data ProductLayoutPage = ProductLayoutPage
@@ -56,8 +59,12 @@ mkProductLayoutPage theCats theCurrs prod = do
     }
 
 -- | The basename of the path to store the encoded 'ProductLayoutPage'.
-productLayoutBasename :: ProductLayoutPage-> FilePath
-productLayoutBasename page = mkBasename "-product-layout.yaml" name
+productPageBasename :: ProductLayoutPage-> FilePath
+productPageBasename page = mkBasename ".html" name
   where
     name = (fp ^. core . internalName)
     fp = _clpSelf page
+
+-- | Render a ProductLayoutPage using a "Template".
+renderProduct :: Template -> ProductLayoutPage -> Text
+renderProduct t page = LT.toStrict $ renderMustache t $ toJSON page

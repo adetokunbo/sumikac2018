@@ -1,0 +1,46 @@
+<!-- START mobile_header_dropdown.html -->
+<div class="sidebar-nav hidden-sm hidden-md hidden-lg">
+  <!-- Bootstrap responsive sidebar, hidden on small and greater screens -->
+  <div class="row navbar navbar-default" role="navigation">
+    <div class="navbar-header">
+      <div class="col-xs-2">
+        <button type="button" class="skc-toggle navbar-toggle" data-toggle="collapse" data-target=".sidebar-navbar-collapse">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+      </div>
+      <div class="col-xs-offset-1 col-xs-4 hidden-sm hidden-md hidden-lg">
+        <a href="/"><img class="logo-image" src="/pics/sumika_logo.png" alt="Sumika Crafts" /></a>
+      </div>
+    </div>
+    <div class="navbar-collapse collapse sidebar-navbar-collapse">
+      <ul class="nav navbar-nav">
+        <li><a href="/about.html">About</a></li>
+        <li><a target="_blank" href="http://blog.sumikacrafts.com/">Blog</a></li>
+        <li class="dropdown">
+          <a href="#" class="dropdown-toggle" data-toggle="dropdown">Categories <b class="caret"></b></a>
+          <ul class="dropdown-menu">
+          {{> category_list_items.html}}
+          </ul>
+        </li>
+        <li>
+          <a class="cartImage" href="/cart.html"><img src="/pics/cart.png" alt="shopping cart" />&nbsp;Cart</a>
+        </li>
+        <li>
+          <div>
+            <ul class="list-inline">
+              {{> social_links_list_items.html}}
+            </ul>
+          </div>
+        </li>
+        <li><a href="/">Home</a></li>
+        <li><a href="mailto:contact@sumikacrafts.com">Contact&nbsp;us</a></li>
+      </ul>
+    </div><!--/.nav-collapse -->
+  </div>
+  <div class="row color-bar hidden-sm hidden-md hidden-lg">
+  </div>
+</div>
+<!-- END mobile_header_dropdown.html -->

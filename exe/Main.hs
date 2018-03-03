@@ -36,22 +36,16 @@ refresh' Config { user, dirs } = do
   scrapeEmsInfoTo $ downloads </> "ems_delivery_costs.yaml"
   liftIO $ downloadRatesTo $ downloads </> "latest_rates.yaml"
   downloadFile "Products/SiteInfo/Currencies" $ downloads </> "site_currencies.yaml"
+  downloadFile "Products/SiteInfo/Categories" $ downloads </> "site_categories.yaml"
   getWebAlbums working user
   downloadFolder "Products/Description/English" downloads
   downloadFolder "Products" downloads
-  runAll downloads working
+  runAll dirs
 
 -- | Configures the site refresh
 data Config = Config
   { user :: Text
   , dirs :: KnownDirs
-  }
-
--- | Identifies the various directories used during the site refresh
-data KnownDirs = KnownDirs
-  { downloads :: FilePath
-  , working   :: FilePath
-  , site      :: FilePath
   }
 
 defaultConfig :: Config

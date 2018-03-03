@@ -14,6 +14,8 @@ category:            Experiments
 build-type:          Simple
 cabal-version:       >= 1.10
 extra-source-files:  README.md
+data-files:          data/mustache/*.html.mustache
+
 
 executable create-sumikac-site
   hs-source-dirs:      exe
@@ -43,11 +45,14 @@ library
                        -Wincomplete-uni-patterns
                        -Wredundant-constraints
 
+  autogen-modules:     Paths_sumikac2018
+
   exposed-modules:     Network.HTTP.EmsSiteScrape
                      , Network.HTTP.Gogol.Drive
                      , Network.HTTP.Gogol.Picasa
                      , Network.HTTP.OpenExchangeRates
                      , Path.Default
+                     , Paths_sumikac2018
                      , Sumikac.Conduit
                      , Sumikac.Types
                      , Sumikac.Types.Description
@@ -91,6 +96,7 @@ library
                      , pretty-simple >= 2.0
                      , resourcet     >= 1.1.11
                      , scientific    >= 0.3
+                     , stache        >= 1.2
                      , taggy         >= 0.2.1
                      , taggy-lens    >= 0.1.2
                      , text          >= 1.2.2

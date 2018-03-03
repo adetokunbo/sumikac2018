@@ -26,6 +26,7 @@ module Sumikac.Types.Rendered.CategoryPage
   , mkCategoryPage
   , mkCategoryLayoutPage
   , numColumns
+  , renderCategory
   )
 where
 
@@ -33,10 +34,12 @@ import           Data.List                     (unfoldr)
 import           Data.List.NonEmpty            (NonEmpty (..))
 import qualified Data.List.NonEmpty            as NonEmpty
 import           Data.Text                     (Text)
+import qualified Data.Text.Lazy                as LT
 
 import           Data.Aeson
 import           Data.Aeson.Casing
 import           Lens.Micro.Platform
+import           Text.Mustache
 
 -- Hide (to) as it conflicts with Lens.Micro.Platform
 import           GHC.Generics                  hiding (to)
@@ -168,3 +171,7 @@ mkCategoryLayoutPage otherCats page =
     { _clpSelf = page
     , _clpBase = theBase
     }
+
+-- | Render a "CategoryLayoutPage" using a "Template".
+renderCategory :: Template -> CategoryLayoutPage -> Text
+renderCategory t page = LT.toStrict $ renderMustache t $ toJSON page

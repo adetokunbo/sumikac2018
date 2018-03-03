@@ -1,0 +1,114 @@
+<!-- START product_page_price_table.html -->
+<form name="costTableForm" novalidate>
+  <table itemscope class="cost-table" itemprop="offerDetails" itemtype="http://data-vocabulary.org/Offer">
+    <!-- selected currency price -->
+    <tr class="cost-table ng-cloak">
+      <th class="cost-table" scope="row">
+        <div class="product-box-price">
+          <meta itemprop="currency" content="JPY" />
+          <meta itemprop="price" content="{{{core.price}}}" />
+          <span>Price </span><span class="approx">(approx.)&nbsp;</span>
+          <img src="/pics/help_circle_blue.png" alt="shopping cart" tooltip-html-unsafe="The actual price is in Japanese Yen: &yen;{{{core.price}}}"/>
+          <br />
+        </div>
+      </th>
+      <td class="cost-table">
+        <span ng-bind-html='product.fx_prices[values.myCurrency] | sc_currency'></span>
+      </td>
+    </tr>
+    {{#core_derived.has_colours}}
+    <tr class="cost-table">
+      <th scope="row">Available Colours</th>
+    </tr>
+    {{/core_derived.has_colours}}
+    {{#core.colour}}
+    <tr class="cost-table">
+      <th class="cost-table">
+        <span class='price-colour-label'>{{{.}}}</span>
+      </th>
+      <td class="cost-table">
+        <select ng-model="values.quantity.colours['{{{.}}}']"
+                ng-change="updateQuantityCount()"
+                ng-options="i for i in values.allowedQuantities">
+        </select>
+      </td>
+    </tr>
+    {{/core.colour}}
+    {{#core_derived.has_shapes}}
+    <tr class="cost-table">
+      <th scope="row">Available Shapes</th>
+    </tr>
+    {{/core_derived.has_shapes}}
+    {{#core.shape}}
+    <tr class="cost-table">
+      <th class="cost-table">
+        <span class='price-shape-label'>{{{.}}}</span>
+      </th>
+      <td class="cost-table">
+        <select ng-model="values.quantity.shapes['{{{.}}}']"
+                ng-change="updateQuantityCount()"
+                ng-options="i for i in values.allowedQuantities">
+        </select>
+      </td>
+    </tr>
+    {{/core.shape}}
+    {{#core_derived.has_patterns}}
+    <tr class="cost-table">
+      <th scope="row">Available Patterns</th>
+    </tr>
+    {{/core_derived.has_patterns}}
+    {{#core.patterns}}
+    <tr class="cost-table">
+      <th class="cost-table">
+        <span class='price-pattern-label'>{{{.}}}</span>
+      </th>
+      <td class="cost-table">
+        <select ng-model="values.quantity.pattern['{{{.}}}']"
+                ng-change="updateQuantityCount()"
+                ng-options="i for i in values.allowedQuantities">
+        </select>
+      </td>
+    </tr>
+    {{/core.patterns}}
+    {{#core_derived.has_set_sizes}}
+    <tr class="cost-table">
+      <th scope="row">Available Sets</th>
+    </tr>
+    {{/core_derived.has_set_sizes}}
+    {{#core.setSizes}}
+    <tr class="cost-table">
+      <th class="cost-table">
+        <span class='price-colour-label'>Set of {{{.}}}</span>
+      </th>
+      <td class="cost-table">
+        <select ng-model="values.quantity.setSizes['{{{.}}}']"
+                ng-change="updateQuantityCount()"
+                ng-options="i for i in values.allowedQuantities">
+        </select>
+      </td>
+    </tr>
+    {{/core.setSizes}}
+    {{#core_derived.is_normal}}
+    <tr class="cost-table">
+      <th class="cost-table" scope="row">Quantity</th>
+      <td class="cost-table">
+        <select ng-model="values.quantity"
+                ng-change="updateQuantityCount()"
+                ng-options="i for i in values.allowedQuantities">
+        </select>
+      </td>
+    </tr>
+    {{/core_derived.is_normal}}
+    <tr class="cost-table">
+      <td class="text-center">{{> currency_changer.html}}</td>
+      <td>
+        <button class="btn btn-default"
+                ng-click="addToCart()"
+                ng-disabled="values.quantityCount == 0"
+                ng-bind="values.isInCart | cartButtonText"
+                type="button"></button>
+      </td>
+    </tr>
+  </table>
+</form>
+<!-- END product_page_price_table.html -->

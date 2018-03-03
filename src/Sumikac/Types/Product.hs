@@ -67,9 +67,6 @@ import           Sumikac.Types.Picasa
 import           Sumikac.Types.Weight
 import           Sumikac.Types.YenAmount
 
--- In Asuta Wan, there were 'Made by' which should have been supplier
--- In Bamboo_vase, there is an OriginalName; I'm not sure why
-
 -- | A 'Product' is the core item that the sumikacrafts website gives access to
 -- the public.
 data Product = Product
@@ -141,7 +138,7 @@ instance Exc.Exception NoDeliveryWeight
 mkDerivations :: Product -> Either NoDeliveryWeight ProductDerivations
 mkDerivations p =
   let
-    allM = Text.intercalate "," <$> _materials p
+    allM = Text.intercalate ", " <$> _materials p
     deliveryW = _weightAfterWrapping p <|> _weight p
     hasMd = has _Just $ _manyDimensions p
     md = maybe [] unNamedDimensions $ _manyDimensions p

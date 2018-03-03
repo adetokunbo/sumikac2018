@@ -1,0 +1,41 @@
+<!-- Shows the shopping cart -->
+<div class="col-sm-10" class='container-fluid' data-ng-cloak data-ng-controller='ShowCart'>
+  <div class='cart-table-ng-switch' data-ng-show='values.cartReady' data-ng-switch on='truc.cart.items.length == 0'>
+
+    <div class='cart-empty text-center ng-cloak' data-ng-show='values.cartReady' data-ng-cloak data-ng-switch-when='true'>
+      <div class="row" data-ng-hide='values.order.showCompletedOk'>
+        <span class='no-cart-items'>Your have no items in your cart.</span>
+      </div>
+      <div class="row" data-ng-show='values.order.showCompletedOk'>
+        <div class="col-xs-offset-1 col-xs-10 col-sm-offset-3 col-sm-6 ">
+          <span class="newline">Thank you! You completed an order, and we have sent you a confirmation email.</span>
+          <span>Your order ID is&nbsp;</span><span class="newline cart-display-order-id" data-ng-bind="values.order.completedOrderID"></span>
+          <span>If you don't receive the confirmation email in the next few minutes, use the 'Contact US' link at the top of this page and quote this ID.</span>
+        </div>
+      </div>
+      <div class="skc-dismiss-empty-cart row">
+        <form action="/">
+          <button class="btn btn-success btn-sm" type="submit">OK</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Cart Yen Exchange rate warning -->
+    <div class="skc-cart-container ng-cloak" data-ng-cloak data-ng-show="values.cartReady" data-ng-switch-default>
+      <div class="col-xs-12 col-sm-offset-1 col-sm-10 skc-pay-in-yen-note">
+        <span class="approx"><b>Exchange Rates:</b>&nbsp;All items are priced in</span>
+        <span class="approx">JPY (&yen;:&nbsp;Japanese Yen), but payment will be in your currency.</span>{% include "currency_changer.html" %}<span>The</span>
+        <span class="approx" data-ng-bind="values.myCurrency"></span>
+        <span class="approx">values below are approximations at the current</span>
+        <span class="approx" data-ng-bind="values.myCurrency"></span>
+        <span class="approx">exchange rate.<span>
+      </div>
+      {{> cart_order_details.html}}
+      {{> cart_order_summary.html}}
+    </div>
+
+    <!-- close of class='cart-table-ng-switch' -->
+  </div>
+
+  <!-- close of class='container-fluid' -->
+</div>

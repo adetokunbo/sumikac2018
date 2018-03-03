@@ -13,7 +13,8 @@ Stability   : experimental
 module Sumikac.Conduit
   (
   -- * Yaml Parsing
-    ConvertPipeline(..)
+    KnownDirs(..)
+  , ConvertPipeline(..)
   , mkProductPipe
   , mkLitDescPipe
   , convertFilesIn
@@ -37,18 +38,18 @@ import qualified Data.ByteString.Char8               as BS
 import           Data.List                           (isSuffixOf)
 import           Data.List.NonEmpty                  (NonEmpty)
 import qualified Data.List.NonEmpty                  as NonEmpty
-import qualified Data.Map.Strict                as Map
+import qualified Data.Map.Strict                     as Map
 import           Data.Monoid                         ((<>))
 import           Data.Text                           (Text)
 import qualified Data.Text                           as Text
+import qualified Data.Text.Encoding                  as Text
 import           System.Directory
 import           System.FilePath
 
 import           Data.Aeson                          (FromJSON (..))
-import           Data.Yaml                           (ParseException (..),
-                                                      decode, decodeEither',
-                                                      decodeFileEither, encode)
+import           Data.Yaml
 import           Lens.Micro.Platform
+import           Text.Mustache
 
 import           Data.Conduit
 import qualified Data.Conduit.Combinators            as CC
@@ -60,27 +61,42 @@ import           Sumikac.Types
 import           Sumikac.Types.Rendered.CategoryPage
 import           Sumikac.Types.Rendered.ProductPage
 
+import           Paths_sumikac2018
+
+-- | Identifies the various directories used during the site refresh
+data KnownDirs = KnownDirs
+  { downloads :: FilePath -- ^ the directory where downloaded files are saved
+  , working   :: FilePath -- ^ the working directory where intermediate results are kept
+  , site      :: FilePath -- ^ the site directory containing the generated output
+  }
+
 -- Env is an environment available to all processing pipelines.
 --
 -- Initially it just contains the currencies.
 data Env = Env
   { productEnv      :: FullProductEnv
   , knownCategories :: NonEmpty Text
+  , template        :: Template
+  , dirs            :: KnownDirs
   }
 
 -- | Load files that provide static configuration data.
 loadEnv
   :: (MonadIO m)
-  => FilePath
+  => KnownDirs
   -> m (Either ParseException Env)
-loadEnv src = liftIO $ do
-    let ratesPath = src </> "latest_rates.yaml"
-        categoriesPath = src </> "site_categories.yaml"
-        currenciesPath = src </> "site_currencies.yaml"
-        deliveryCostPath = src </> "ems_delivery_costs.yaml"
+loadEnv dirs = liftIO $ do
+    let KnownDirs {downloads} = dirs
+        ratesPath = downloads </> "latest_rates.yaml"
+        categoriesPath = downloads </> "site_categories.yaml"
+        currenciesPath = downloads </> "site_currencies.yaml"
+        deliveryCostPath = downloads </> "ems_delivery_costs.yaml"
     fromUSD <- decodeFileEither ratesPath
     categories' <- decodeFileEither categoriesPath
     currencies <- decodeFileEither currenciesPath
+    templateDir <- (flip (</>) "data/mustache") <$> getDataDir
+    putStrLn $ "Loading templates in " ++ templateDir
+    template <- compileMustacheDir "product_layout.html" templateDir
     emsRates <- decodeFileEither deliveryCostPath
     return $ do
       knownCategories <- categories'
@@ -91,105 +107,113 @@ loadEnv src = liftIO $ do
       return $ Env
         { productEnv = FullProductEnv fromYen emsRates'
         , knownCategories
+        , template
+        , dirs
         }
 
 -- | Run the pipes that regenerate the site.
 runAll
   :: (MonadIO m, MonadThrow m, MonadBaseControl IO m)
-  => FilePath -- ^ the source directory containing the downloaded files
-  -> FilePath -- ^ the destination directory to where the files are saved
+  => KnownDirs -- ^ configures locations used by the pipeline
   -> m ()
-runAll src dst = do
-  let prodDir = src </> "Products"
+runAll dirs = do
+  let KnownDirs {downloads, working} = dirs
+      prodDir = downloads </> "Products"
       descDir = prodDir </> "Description/English"
 
-  env <- loadEnv src
+  env <- loadEnv dirs
   case env of
     Left e -> throwM e -- could not load files in the environment
     Right env' -> do
+      runConduitRes $ convertFilesIn descDir $ mkLitDescPipe working
       let withEnv = flip runReaderT env' . runConduitRes
-      runConduitRes $ convertFilesIn descDir $ mkLitDescPipe dst
-      withEnv $ convertFilesIn prodDir $ mkProductPipe dst
-      withEnv $ collectCategories dst $ knownCategories env'
+      withEnv $ convertFilesIn prodDir $ mkProductPipe working
+      withEnv generateSiteHtml
 
-collectCategories
+-- | Generate the site html pages
+generateSiteHtml
   :: (MonadIO m, MonadResource m, MonadReader Env m)
-  => FilePath -> NonEmpty Text -> ConduitM i o m ()
-collectCategories src cats = do
-  let dst c = src </> (Text.unpack c) <> "-category.yaml"
-  pages <- CC.yieldMany cats
-           .| awaitForever (yieldCategoryPage src)
+  => ConduitM i o m ()
+generateSiteHtml = do
+  Env { template, dirs, knownCategories } <- ask
+  let KnownDirs { site, working } = dirs
+      template' = template {templateActual = "category_layout.html"}
+      generate cats = awaitForever $ \page -> do
+        let cat = page ^. categoryId
+            layout = mkCategoryLayoutPage (NonEmpty.fromList cats) page
+            dst = site </> "categories" </> (Text.unpack cat) <> ".html"
+            bytez  = Text.encodeUtf8 $ renderCategory template' layout
+        liftIO $ putStrLn $ "... creating " ++ dst
+        yield (dst, bytez)
+
+  pages <- CC.yieldMany knownCategories
+           .| awaitForever (yieldCategoryPage working)
            .| CC.sinkList
   let availableCats = map (^. categoryId) pages
-      mkLayout = mkCategoryLayoutPage $ NonEmpty.fromList availableCats
-      layouts = zip (map dst availableCats) $ map (encode . mkLayout) pages
-  CC.yieldMany layouts
+  CC.yieldMany pages
+    .| generate availableCats
     .| save
     .| CC.sinkNull
-  generateProductPages src $ NonEmpty.fromList availableCats
+  generateProductHtml $ NonEmpty.fromList availableCats
 
--- | Read the FullProducts in the target dir, and generate product pages from
--- them
-generateProductPages
+-- | Generate the product HTML pages from the 'FullProduct' in the working dir.
+generateProductHtml
   :: (MonadIO m, MonadResource m, MonadReader Env m)
-  => FilePath         -- ^ target directory
-  -> NonEmpty Text    -- ^ available categories
+  => NonEmpty Text    -- ^ available categories
   -> ConduitM i o m ()
-generateProductPages src cats =
-  CF.sourceDirectory src
-  .| filter'
-  .| sourceFile'
-  .| handleEither dumpParseException decode' generate
-  where
-    filter' = CC.filter (isSuffixOf "-complete.yaml")
-    decode' = CC.map decodeEither'
-    sourceFile' = awaitForever $ \f -> do
-      let msg = "Generating product page from: " <> Text.pack f
-      liftIO $ print msg
-      CC.sourceFile f
+generateProductHtml cats = do
+  Env { dirs } <- ask
+  let KnownDirs { working } = dirs
+      filter' = CC.filter (isSuffixOf "-complete.yaml")
+      decode' = CC.map decodeEither'
+      sourceFile' = awaitForever $ \f -> CC.sourceFile f
 
+  CF.sourceDirectory working
+    .| filter'
+    .| sourceFile'
+    .| handleEither dumpParseException decode' generate
+    .| save
+    .| CC.sinkNull
+  where
     generate = awaitForever $ \fp -> do
-      Env { productEnv } <- ask
+      Env { dirs, productEnv, template } <- ask
       let FullProductEnv { _fpeRates} = productEnv
+          KnownDirs { site } = dirs
           currs = NonEmpty.fromList $ Map.keys _fpeRates
       case (mkProductLayoutPage cats currs fp) of
         Left err -> do
-          let msg = "Failed to get product page yaml from " ++ show err
+          let msg = "Failed to generate product HTML page: " ++ show err
           liftIO $ putStrLn msg
         Right page -> do
-          let dst = src </> productLayoutBasename page
-          yield (encode page) .| CC.sinkFile dst
+          let dst = site </> "products" </> "named" </> productPageBasename page
+              bytez = Text.encodeUtf8 $ renderProduct template page
+          liftIO $ putStrLn $ "... creating " ++ dst
+          yield (dst, bytez)
 
--- | A pipeline that yields the model of a CategoryPage.
+-- | A pipeline that yields 'CategoryPage' for each product.
 --
--- It scans *-complete.yaml in the given directory as FullProduct yaml files
---   If the product is the given category, includes the product CategoryPage
---   it yields
+-- It scans the src directory for product yaml files, and yields
+-- a CategoryPage for each product that is in the specified category
 yieldCategoryPage
   :: (MonadIO m, MonadResource m)
   => FilePath  -- ^ target directory
   -> Text      -- ^ category name
   -> ConduitM i CategoryPage m ()
-yieldCategoryPage src c =
+yieldCategoryPage src cat =
   CF.sourceDirectory src
   .| filter'
   .| sourceFile'
-  .| handleEither dumpParseException decode' collect
+  .| handleEither dumpParseException decode' mkPage
   where
     filter' = CC.filter (isSuffixOf "-complete.yaml")
     decode' = CC.map decodeEither'
-    sourceFile' = awaitForever $ \f -> do
-      let msg = "Scanning for products in category: "
-            <> c <> " in " <> Text.pack f
-      liftIO $ print msg
-      CC.sourceFile f
+    sourceFile' = awaitForever $ \f ->  CC.sourceFile f
 
-    collect = do
-      accum <- (CL.mapMaybe $ categoryProduct c) .| CC.sinkList
+    mkPage = do
+      accum <- (CL.mapMaybe $ categoryProduct cat) .| CC.sinkList
       case (length accum) of
-        0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack c
-        _ -> yield $ mkCategoryPage c numColumns accum
-
+        0 -> liftIO  $ putStrLn $ "No products found for: " ++ Text.unpack cat
+        _ -> yield $ mkCategoryPage cat numColumns accum
 
 -- | Process the target YAML files in a srcDir into outputs in dstDir.
 --
@@ -202,15 +226,16 @@ convertFilesIn
   => FilePath -- ^ the source directory
   -> ConvertPipeline j o m
   -> ConduitM i o m ()
-convertFilesIn srcDir pipe =
+convertFilesIn srcDir pipeline =
   CF.sourceDirectory srcDir
   .| CC.filterM (liftIO . doesFileExist) -- filter out directories
-  .| awaitForever go
+  .| sourceFile'
+  .| handleEither cpError cpParse cpGo
   where
-    go f = do
-      let ConvertPipeline{cpParse, cpGo, cpError} = pipe
+    ConvertPipeline{cpParse, cpGo, cpError} = pipeline
+    sourceFile' = awaitForever $ \f -> do
       liftIO $ putStrLn "" >> (putStrLn $ "Processing " ++ f)
-      CC.sourceFile f .| handleEither cpError cpParse cpGo
+      CC.sourceFile f
 
 -- FileContents are the entire contents for reading a file
 type FileContents = ByteString

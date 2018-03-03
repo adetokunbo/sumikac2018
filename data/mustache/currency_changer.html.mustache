@@ -1,0 +1,8 @@
+<span class="text-danger approx" data-ng-controller="SwitchCurrency">
+  &nbsp;Showing prices in&nbsp;
+  <select class="choose-currency"
+          data-ng-model="values.myCurrency"
+          data-ng-options="c for c in values.currencies"
+          data-ng-change="changeCurrency()">
+  </select>.
+</span>

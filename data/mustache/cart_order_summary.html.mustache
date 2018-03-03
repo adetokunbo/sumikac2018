@@ -1,0 +1,53 @@
+<!-- START views/cart_order_summary.html -->
+<div class="skc-cart-summary-container">
+  <div class="row skc-cart-summary-title">
+    <div class="col-xs-6 col-sm-5 text-center">Item</div>
+    <div class="col-sm-3 hidden-xs text-right">Quantity</div>
+    <div class="col-xs-3 col-sm-2 text-right">Unit Cost</div>
+    <div class="col-xs-3 col-sm-2 text-right">Total</div>
+  </div>
+  <!-- Cart Summary Rows -->
+  <div class="row skc-cart-summary-row" data-ng-repeat='i in truc.cart.items'>
+    <!-- cart items -->
+    <div class="col-xs-6 col-sm-5">
+      {{=<% %>=}}
+        <a data-ng-href='{{truc.cart.namedProducts[i.itm.id].spaWebLink()}}'>
+          <img class="narrow cart-image" data-ng-src='{{truc.cart.namedProducts[i.itm.id].images[0].thumb}}' alt='{{i.itm.id}}' />
+        </a>
+        {{i.itm.nm}}
+      <%={{ }}=%>
+      &nbsp;<a href="" data-ng-click="removeItem(i)" >(remove)</a>
+    </div>
+    <div class="col-sm-3 hidden-xs text-right" data-ng-if='!i.qtys'>
+      <div class="row">
+        <button class='btn btn-inverse btn-xs' data-ng-click='decrItem(i)' type='button'>-</button>
+        <span class='cart-item-qty' data-ng-bind='i.qty'></span>
+        <button class='btn btn-success btn-xs'
+                data-ng-disabled='i.qty >= truc.cart.maxQuantity'
+                data-ng-click='incrItem(i)'
+                type='button'>+</button>
+      </div>
+    </div>
+    <div class="col-sm-3 hidden-xs text-right" data-ng-if="i.qtys">
+      <div class="skc-cart-qtys" data-ng-repeat="(choice, choices) in i.qtys">
+        <div class="row" data-ng-repeat="(chosen, qty) in choices" ng-hide="qty == 0">
+          <span data-ng-if='choice == "set_sizes"'>Set of&nbsp;</span><span data-ng-bind="chosen"></span>
+          &nbsp;<button class="btn btn-inverse btn-xs" data-ng-click="decrItem(i, choice, chosen)" type="button">-</button>
+          <span class="cart-item-qty" data-ng-bind="qty"></span>
+          <button class="btn btn-success btn-xs" data-ng-click="incrItem(i, choice, chosen)" type="button">+</button>
+        </div>
+      </div>
+    </div>
+    <div class="col-xs-3 col-sm-2 text-right" data-ng-bind-html="unitCost(i) | sc_currency:values.myCurrency"></div>
+    <div class="col-xs-3 col-sm-2 text-right" data-ng-bind-html="itemCost(i) | sc_currency:values.myCurrency"></div>
+  </div>
+  <div class="row skc-cart-summary-footer">
+    <tr>
+      <div class="col-xs-offset-6 col-sm-offset-8 col-xs-3 col-sm-2 text-right"><b>Total</b></div>
+      <div class="col-xs-3 col-sm-2 text-right">
+        <span data-ng-bind-html='values.totalCost.full[values.myCurrency] | sc_currency:values.myCurrency'></span>
+      </div>
+    </tr>
+  </div>
+</div>
+<!-- END views/cart_order_summary.html -->

@@ -1,0 +1,96 @@
+<div class="panel-group" id="accordion" role="tablist" aria-multiselectable="true" itemscope itemtype="http://data-vocabulary.org/Product">
+  <div class="panel panel-default">
+    <Meta="Identifier" content="sku:{{{full_desc.internal_name}}}"/>
+    <div class="panel-heading" role="tab" id="productDescHeading">
+      <h4 class="panel-title">
+        <a role="button" data-toggle="collapse" data-parent="#accordion" href="#productDescCollapse" aria-expanded="false" aria-controls="productDescCollapse">
+          About&nbsp;<span itemprop="name">{{{full_desc.product_name}}}</span>&nbsp;...
+        </a>
+      </h4>
+    </div>
+    <div id="productDescCollapse" class="panel-collapse collapse" role="tabpanel" aria-labelledby="productDescHeading">
+      <div class="panel-body product-spec-text">
+        {{#full_desc.overview}}
+        <p class="product-info">
+          {{{full_desc.overview}}}
+        </p>
+        {{/full_desc.overview}}
+        {{#full_desc.description}}
+          <p class="product-info" itemprop="description">
+            {{{full_desc.description}}}
+          </p>
+        {{/full_desc.description}}
+        {{#full_desc.for_use}}
+        <div class="product-spec-title">Use with care</div>
+        <p class="product-info">
+          {{{full_desc.for_use}}}
+        </p>
+        {{/full_desc.for_use}}
+        {{#full_desc.for_order}}
+        <div class="product-spec-title">Delivery notes</div>
+        <p class="product-info">
+          {{{full_desc.for_order}}}
+        </p>
+        {{/full_desc.for_order}}
+      </div>
+    </div>
+  </div>
+  <div class="panel panel-default">
+    <div class="panel-heading" role="tab" id="productBuyHeading">
+      <h4 class="panel-title">
+        <a class="collapsed" role="button" data-toggle="collapse" data-parent="#accordion" href="#productBuyCollapse" aria-expanded="false" aria-controls="productBuyCollapse">
+          Buy It
+        </a>
+      </h4>
+    </div>
+    <div id="productBuyCollapse" class="panel-collapse collapse" role="tabpanel" aria-labelledby="productBuyHeading">
+      {{> product_page_price_table.html}}
+    </div>
+  </div>
+  <div class="panel panel-default">
+    <div class="panel-heading" role="tab" id="productSpecHeading">
+      <h4 class="panel-title">
+        <a class="collapsed" role="button" data-toggle="collapse" data-parent="#accordion" href="#productSpecCollapse" aria-expanded="false" aria-controls="productSpecCollapse">
+          Specifications
+        </a>
+      </h4>
+    </div>
+    <div id="productSpecCollapse" class="panel-collapse collapse" role="tabpanel" aria-labelledby="productSpecHeading">
+      <div class="panel-body">
+        {{#core.Dimensions}}
+        <p class="product-spec">
+          Dimensions: {{core.Dimensions}}
+        </p>
+        {{/core.Dimensions}}
+        {{#core_derived.has_many_dimensions}}
+        <ul class="list-unstyled">
+          <span>Dimensions:</span>
+          {{#core_derived.many_dimensions}}
+          <li>
+            {{name}}: {{value}}
+          </li>
+          {{/core_derived.many_dimensions}}
+        </ul>
+        {{/core_derived.has_many_dimensions}}
+        <p class="product-spec">
+          Made in: {{{core.MadeIn}}}
+        </p>
+        {{#core_derived.delivery_weight}}
+        <p class="product-spec">
+          Weight: {{{core_derived.delivery_weight}}}
+        </p>
+        {{/core_derived.delivery_weight}}
+        {{#core.Supplier}}
+        <p class="product-spec">
+          Creator: <span itemprop="brand">{{{core.Supplier}}}</span>
+        </p>
+        {{/core.Supplier}}
+        {{#core_derived.all_materials}}
+        <p class="product-spec">
+          Materials: {{{core_derived.all_materials}}}
+        </p>
+        {{/core_derived.all_materials}}
+      </div>
+    </div>
+  </div>
+</div>

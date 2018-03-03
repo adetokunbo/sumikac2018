@@ -1,0 +1,10 @@
+<!-- START category_list_items.html -->
+{{#categories}}
+{{#is_current}}
+<li><span class='selected-category'>{{{name}}}</span></li>
+{{/is_current}}
+{{^is_current}}
+<li><a class='other-category' href="{{{uri}}}">{{{name}}}</a></li>
+{{/is_current}}
+{{/categories}}
+<!-- END category_list_items.html -->

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  {{#base}}
+  {{> head.html}}
+  {{/base}}
+  <body data-ng-app='sc.product_page'>
+    <div class="container">
+      {{#base}}
+      {{> non_mobile_header_bar.html}}
+      {{/base}}
+      <div class="row">
+        <div class="col-sm-1">
+          {{#base}}
+          {{> mobile_header_dropdown.html}}
+          {{/base}}
+        </div>
+        <div class="col-sm-11">
+          <div class="row col-sm-11 hidden-xs color-bar">
+          </div>
+          {{#self}}
+          <div class="row col-sm-11 product-title">
+            <h4>{{{full_desc.product_name}}}</h4>{{#core.Supplier}}<h5> by {{{core.Supplier}}}</h5>{{/core.Supplier}}
+          </div>
+          {{/self}}
+          <div class="row col-sm-11 product-panels" data-ng-controller="ShowProduct">
+           {{#self}}
+           {{> product_page_accordion.html}}
+           {{/self}}
+          </div>
+          <div class="row col-sm-11 product-carousel">
+           {{#self}}
+           {{> product_page_images.html}}
+           {{/self}}
+          </div>
+          {{#base}}
+          {{> common_footer.html}}
+          {{/base}}
+        </div>
+      </div>
+    </div>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
+            integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa"
+            crossorigin="anonymous"></script>
+    {{#base}}
+    <script type="text/javascript">
+      {{#as_json.categories}}
+      var sc_categories = (
+         {{{as_json.categories}}}
+      );
+      {{/as_json.categories}}
+      {{#as_json.currencies}}
+      var sc_currencies = (
+         {{{as_json.currencies}}}
+      );
+      {{/as_json.currencies}}
+      {{#as_json.product_obj}}
+      var sc_product = (
+         {{{as_json.product_obj}}}
+      );
+      {{/as_json.product_obj}}
+    </script>
+    {{/base}}
+    <script type="text/javascript" src="/wui/product_app_main.js"></script>
+  </body>
+</html>
